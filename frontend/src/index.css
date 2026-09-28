@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #4cd7f6;
+  --color-primary-container: #06b6d4;
+  --color-on-primary: #003640;
+  --color-on-primary-container: #00424f;
+  --color-secondary: #ffb95f;
+  --color-secondary-container: #ee9800;
+  --color-tertiary: #4edea3;
+  --color-tertiary-container: #1bbd85;
+  --color-surface: #12131a;
+  --color-surface-dim: #12131a;
+  --color-surface-bright: #383941;
+  --color-surface-variant: #33343c;
+  --color-surface-container-lowest: #0d0e15;
+  --color-surface-container-low: #1a1b22;
+  --color-surface-container: #1e1f26;
+  --color-surface-container-high: #292931;
+  --color-surface-container-highest: #33343c;
+  --color-on-surface: #e3e1ec;
+  --color-on-surface-variant: #bcc9cd;
+  --color-outline: #869397;
+  --color-outline-variant: #3d494c;
+  --color-background: #0b1511;
+  --color-on-background: #d9e5de;
+  --color-error: #ffb4ab;
+  --color-error-container: #93000a;
+
+  --font-headline: "Plus Jakarta Sans", "Space Grotesk", sans-serif;
+  --font-body: "Inter", "Hanken Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: #0d0e15;
+  color: #e3e1ec;
+  font-family: var(--font-body);
+}
+
+/* Autofill dark theme override */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active,
+input:autofill,
+input:autofill:hover,
+input:autofill:focus,
+input:autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #09090b inset !important;
+  box-shadow: 0 0 0 1000px #09090b inset !important;
+  -webkit-text-fill-color: #e4e4e7 !important;
+  caret-color: #e4e4e7 !important;
+  transition: background-color 50000s ease-in-out 0s !important;
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(76, 215, 246, 0.4);
+}
