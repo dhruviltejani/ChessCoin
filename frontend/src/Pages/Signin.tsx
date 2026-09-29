@@ -9,8 +9,8 @@ import {
   EyeOff,
   Loader2,
   Lock,
-  Medal,
   Swords,
+  Trophy,
   X,
 } from "lucide-react";
 import { BishopIcon } from "../components/ChessIcons";
@@ -249,16 +249,17 @@ const Signin = () => {
       </div>
 
       {/* Top Header / Logo */}
-      <header className="relative z-10 flex w-full items-center justify-center pt-3 sm:pt-4 pb-1 px-4 shrink-0">
+      <header className="relative z-10 flex w-full items-center justify-center pt-2 sm:pt-3 pb-1 px-4 shrink-0">
         <div className="flex items-center gap-2.5 sm:gap-3 select-none">
-          <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-cyan-400/25 bg-[#0e1422] shadow-[0_0_20px_rgba(6,182,212,0.25)]">
-            <Medal className="h-4.5 w-4.5 sm:h-5 sm:w-5 text-cyan-400" />
+          <div className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl border border-cyan-400/10 bg-zinc-900 shadow-lg shadow-cyan-500/10">
+            <Trophy className="h-5 w-5 text-cyan-400" />
           </div>
-          <span className="text-lg sm:text-xl font-bold tracking-tight text-white">
+          <span className="text-lg sm:text-2xl font-semibold tracking-tight">
             Chess<span className="text-cyan-400">Coin</span>
           </span>
         </div>
       </header>
+
 
 
       {/* Main Content Area */}
