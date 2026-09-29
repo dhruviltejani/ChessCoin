@@ -27,8 +27,9 @@ const Signup = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<SignupFormErrors>({});
-  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [, setHasSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [apiError, setApiError] = useState<string | null>(null);
   const [handleStatus, setHandleStatus] = useState<HandleStatus>("idle");
   const [isEmailRegistered, setIsEmailRegistered] = useState(false);
@@ -154,7 +155,6 @@ const Signup = () => {
     // Check if email format is valid before querying backend
     const parseResult = signupSchema.shape.email.safeParse(trimmed);
     if (!trimmed || !parseResult.success) {
-      setIsEmailRegistered(false);
       return;
     }
 
@@ -168,6 +168,7 @@ const Signup = () => {
         const response = await fetch(queryUrl, { signal: controller.signal }).catch(() =>
           fetch(fallbackUrl, { signal: controller.signal })
         );
+        if (!response) return;
         const data = await response.json();
 
         if (data.success) {
@@ -210,7 +211,14 @@ const Signup = () => {
 
     if (fieldName === "email") {
       setIsEmailRegistered(false);
+      setErrors((previous) => {
+        if (previous.email?.[0] === "Email address is already registered") {
+          return { ...previous, email: undefined };
+        }
+        return previous;
+      });
     }
+
 
     if (fieldName === "handle") {
       const trimmed = value.trim();

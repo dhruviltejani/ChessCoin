@@ -48,5 +48,12 @@ export const googleAuthSchema = z.object({
   avatarPiece: z.enum(["rook", "pawn", "bishop", "queen", "king", "knight"]).optional().default("queen"),
 });
 
+export const loginSchema = z.object({
+  identifier: z.string().trim().min(1, "Email or player handle is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
+

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import { query } from "../config/db.js";
-import { registerSchema, googleAuthSchema } from "../schemas/authSchema.js";
+import { registerSchema, googleAuthSchema, loginSchema } from "../schemas/authSchema.js";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const oauth2Client = new OAuth2Client(googleClientId);
@@ -423,3 +423,87 @@ export const googleAuth = async (req: Request, res: Response): Promise<void> => 
     });
   }
 };
+
+export const loginUser = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rawIdentifier = (req.body.identifier || req.body.email || req.body.handle || "").trim();
+    const rawPassword = req.body.password || "";
+
+    const parseResult = loginSchema.safeParse({
+      identifier: rawIdentifier,
+      password: rawPassword,
+    });
+
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        message: "Please provide both your email/handle and password",
+        errors: parseResult.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    const { identifier, password } = parseResult.data;
+
+    // Search for user by email OR handle (case-insensitive)
+    const userRes = await query(
+      `SELECT id, display_name, handle, email, password_hash, avatar_piece, auth_provider, created_at
+       FROM users
+       WHERE LOWER(email) = LOWER($1) OR LOWER(handle) = LOWER($1)
+       LIMIT 1`,
+      [identifier]
+    );
+
+    if (userRes.rows.length === 0) {
+      res.status(401).json({
+        success: false,
+        message: "No account found matching this email or handle",
+        field: "identifier",
+      });
+      return;
+    }
+
+    const user = userRes.rows[0];
+
+    // If account was created with OAuth and does not have a local password
+    if (!user.password_hash) {
+      res.status(400).json({
+        success: false,
+        message: `This account was registered with ${user.auth_provider === "google" ? "Google" : user.auth_provider}. Please sign in using Google.`,
+        field: "auth_provider",
+      });
+      return;
+    }
+
+    // Verify password hash
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    if (!isPasswordValid) {
+      res.status(401).json({
+        success: false,
+        message: "Incorrect password. Please try again.",
+        field: "password",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Welcome back, ${user.display_name}!`,
+      user: {
+        id: user.id,
+        displayName: user.display_name,
+        handle: user.handle,
+        email: user.email,
+        avatarPiece: user.avatar_piece,
+        createdAt: user.created_at,
+      },
+    });
+  } catch (error) {
+    console.error("Error logging in user:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error during sign in",
+    });
+  }
+};
+
