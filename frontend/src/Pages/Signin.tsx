@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
 import {
   AlertCircle,
@@ -18,6 +18,8 @@ import { signinSchema, type SigninFormData, type SigninFormErrors } from "../lib
 
 const Signin = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const flashMessage = (location.state as { message?: string } | null)?.message;
 
   const [formData, setFormData] = useState<SigninFormData>({
     identifier: "",
@@ -28,11 +30,6 @@ const Signin = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Forgot password modal state
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState("");
-  const [forgotSuccess, setForgotSuccess] = useState(false);
-  const [isSendingReset, setIsSendingReset] = useState(false);
 
   // Google setup / dev simulation modal
   const [showGoogleSetupModal, setShowGoogleSetupModal] = useState(false);
@@ -229,18 +226,8 @@ const Signin = () => {
     }
   };
 
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!forgotEmail.trim()) return;
-
-    setIsSendingReset(true);
-    setTimeout(() => {
-      setIsSendingReset(false);
-      setForgotSuccess(true);
-    }, 800);
-  };
-
   return (
+
     <main className="min-h-screen sm:h-screen w-full bg-[#080b11] text-white flex flex-col justify-between items-center relative overflow-x-hidden overflow-y-auto sm:overflow-hidden selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Ambient Radial Background Glows */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
@@ -289,6 +276,14 @@ const Signin = () => {
               Sign in to access your ratings, leagues, and live tournaments
             </p>
           </div>
+
+          {/* Flash / Navigation Message (e.g., from reset password or signup) */}
+          {flashMessage && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 text-xs text-emerald-400 animate-in fade-in duration-200">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span>{flashMessage}</span>
+            </div>
+          )}
 
           {/* General API Error Alert */}
           {apiError && (
@@ -346,18 +341,14 @@ const Signin = () => {
                 >
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setForgotEmail(formData.identifier.includes("@") ? formData.identifier : "");
-                    setForgotSuccess(false);
-                    setShowForgotModal(true);
-                  }}
+                <Link
+                  to="/forgot-password"
                   className="text-xs font-medium text-cyan-400 hover:text-cyan-300 transition hover:underline cursor-pointer"
                 >
                   Forgot Password?
-                </button>
+                </Link>
               </div>
+
               <div
                 className={`relative flex items-center w-full rounded-xl bg-[#07090e] border transition h-10 sm:h-11 px-3.5 ${
                   errors.password?.length
@@ -490,89 +481,6 @@ const Signin = () => {
         </p>
 
       </footer>
-
-      {/* Forgot Password Modal */}
-      {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-[#0d121c] p-6 shadow-2xl relative">
-            <button
-              type="button"
-              onClick={() => setShowForgotModal(false)}
-              className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-
-            {forgotSuccess ? (
-              <div className="text-center py-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle2 className="h-6 w-6" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">Reset Link Sent</h3>
-                <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
-                  We've sent password reset instructions to{" "}
-                  <span className="text-cyan-400 font-medium">{forgotEmail}</span>. Please check your inbox and spam folder.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowForgotModal(false)}
-                  className="mt-5 w-full h-10 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-zinc-950 font-bold text-sm transition cursor-pointer"
-                >
-                  Back to Sign In
-                </button>
-              </div>
-            ) : (
-              <form onSubmit={handleForgotSubmit}>
-                <h3 className="text-lg font-semibold text-white">Reset Password</h3>
-                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-                  Enter your registered email address and we'll send you instructions to reset your account password.
-                </p>
-
-                <div className="mt-4">
-                  <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                    Email Address
-                  </label>
-                  <div className="relative flex items-center w-full rounded-xl bg-[#07090e] border border-zinc-800 focus-within:border-cyan-500/60 focus-within:ring-1 focus-within:ring-cyan-500/20 transition h-11 px-3.5">
-                    <AtSign className="h-4 w-4 text-zinc-500 shrink-0 mr-3" />
-                    <input
-                      type="email"
-                      required
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="you@chesscoin.org"
-                      className="w-full bg-transparent text-sm text-zinc-100 placeholder:text-zinc-600 outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-5 flex gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotModal(false)}
-                    className="flex-1 h-10 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-medium text-zinc-300 hover:bg-zinc-800 transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSendingReset}
-                    className="flex-1 h-10 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-zinc-950 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
-                  >
-                    {isSendingReset ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>Sending...</span>
-                      </>
-                    ) : (
-                      <span>Send Link</span>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Google Setup / Dev Simulation Modal (if Google Client ID is unconfigured) */}
       {showGoogleSetupModal && (

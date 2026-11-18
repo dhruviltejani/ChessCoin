@@ -1,8 +1,16 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { OAuth2Client } from "google-auth-library";
 import { query } from "../config/db.js";
-import { registerSchema, googleAuthSchema, loginSchema } from "../schemas/authSchema.js";
+import {
+  registerSchema,
+  googleAuthSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from "../schemas/authSchema.js";
+import { sendPasswordResetEmail } from "../services/mailService.js";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const oauth2Client = new OAuth2Client(googleClientId);
@@ -503,6 +511,198 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({
       success: false,
       message: "Internal server error during sign in",
+    });
+  }
+};
+
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parseResult = forgotPasswordSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        message: parseResult.error.errors[0]?.message || "Please enter a valid email address",
+        errors: parseResult.error.flatten().fieldErrors,
+        field: "email",
+      });
+      return;
+    }
+
+    const { email } = parseResult.data;
+
+    // Check if user exists (case-insensitive)
+    const userRes = await query(
+      "SELECT id, display_name, email, auth_provider FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1",
+      [email]
+    );
+
+    if (userRes.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "No registered ChessCoin account found with this email address.",
+        field: "email",
+      });
+      return;
+    }
+
+    const user = userRes.rows[0];
+
+    // Generate cryptographically secure random token (32 bytes hex = 64 chars)
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+
+    // Invalidate any existing unused reset tokens for this user
+    await query(
+      "UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND used_at IS NULL",
+      [user.id]
+    );
+
+    // Save the hashed token with a 1-hour expiration
+    await query(
+      `INSERT INTO password_resets (user_id, token_hash, expires_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '1 hour')`,
+      [user.id, tokenHash]
+    );
+
+    // Build the frontend password reset URL
+    const frontendBase = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetUrl = `${frontendBase}/reset-password?token=${rawToken}`;
+
+    // Send email using Nodemailer
+    const mailResult = await sendPasswordResetEmail(user.email, user.display_name, resetUrl);
+
+    res.status(200).json({
+      success: true,
+      message: "Password reset link has been dispatched to your email address.",
+      email: user.email,
+      previewUrl: mailResult.previewUrl,
+    });
+  } catch (error) {
+    console.error("Error in forgotPassword handler:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while generating reset link",
+    });
+  }
+};
+
+export const verifyResetToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rawToken = req.query.token;
+    if (typeof rawToken !== "string" || !rawToken.trim()) {
+      res.status(400).json({
+        success: false,
+        valid: false,
+        message: "Reset token is required",
+      });
+      return;
+    }
+
+    const tokenHash = crypto.createHash("sha256").update(rawToken.trim()).digest("hex");
+
+    const tokenRes = await query(
+      `SELECT pr.id, pr.expires_at, u.email, u.display_name
+       FROM password_resets pr
+       JOIN users u ON u.id = pr.user_id
+       WHERE pr.token_hash = $1
+         AND pr.used_at IS NULL
+         AND pr.expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    if (tokenRes.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        valid: false,
+        message: "This password reset link is invalid or has expired.",
+      });
+      return;
+    }
+
+    const resetRecord = tokenRes.rows[0];
+
+    res.status(200).json({
+      success: true,
+      valid: true,
+      email: resetRecord.email,
+      displayName: resetRecord.display_name,
+    });
+  } catch (error) {
+    console.error("Error verifying reset token:", error);
+    res.status(500).json({
+      success: false,
+      valid: false,
+      message: "Internal server error verifying reset token",
+    });
+  }
+};
+
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const parseResult = resetPasswordSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        message: parseResult.error.errors[0]?.message || "Password does not satisfy requirements",
+        errors: parseResult.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    const { token, password } = parseResult.data;
+    const tokenHash = crypto.createHash("sha256").update(token.trim()).digest("hex");
+
+    const tokenRes = await query(
+      `SELECT pr.id, pr.user_id, pr.expires_at, u.email, u.display_name
+       FROM password_resets pr
+       JOIN users u ON u.id = pr.user_id
+       WHERE pr.token_hash = $1
+         AND pr.used_at IS NULL
+         AND pr.expires_at > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [tokenHash]
+    );
+
+    if (tokenRes.rows.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "This password reset link is invalid or has expired. Please request a new link.",
+      });
+      return;
+    }
+
+    const resetRecord = tokenRes.rows[0];
+
+    // Hash the new password with bcrypt
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Update user's password in database
+    await query(
+      `UPDATE users
+       SET password_hash = $1,
+           auth_provider = CASE WHEN auth_provider = 'google' THEN 'local' ELSE auth_provider END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [passwordHash, resetRecord.user_id]
+    );
+
+    // Mark the reset token as used so it cannot be re-used
+    await query(
+      "UPDATE password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = $1",
+      [resetRecord.id]
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Your password has been successfully reset. You may now sign in.",
+    });
+  } catch (error) {
+    console.error("Error resetting password:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while resetting password",
     });
   }
 };

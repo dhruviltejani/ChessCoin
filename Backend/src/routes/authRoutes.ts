@@ -5,6 +5,9 @@ import {
   checkEmailAvailability,
   googleAuth,
   loginUser,
+  forgotPassword,
+  verifyResetToken,
+  resetPassword,
 } from "../controllers/authController.js";
 
 const router = Router();
@@ -16,6 +19,10 @@ router.post("/signup", registerUser); // Alias for signup
 router.post("/login", loginUser);
 router.post("/signin", loginUser); // Alias for login
 router.post("/google", googleAuth);
+router.post("/forgot-password", forgotPassword);
+router.get("/verify-reset-token", verifyResetToken);
+router.post("/reset-password", resetPassword);
 
 export default router;
+
 
