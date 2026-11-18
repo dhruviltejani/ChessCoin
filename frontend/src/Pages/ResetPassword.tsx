@@ -28,23 +28,24 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const [isVerifyingToken, setIsVerifyingToken] = useState(true);
+  const [isVerifyingToken, setIsVerifyingToken] = useState(Boolean(token));
   const [isTokenValid, setIsTokenValid] = useState(false);
   const [targetEmail, setTargetEmail] = useState<string | null>(null);
 
   const [errors, setErrors] = useState<ResetPasswordFormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(
+    token ? null : "No reset token provided. Please request a new recovery link."
+  );
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Validate token on mount
   useEffect(() => {
     if (!token) {
-      setIsVerifyingToken(false);
-      setIsTokenValid(false);
-      setApiError("No reset token provided. Please request a new recovery link.");
       return;
     }
+
+    let isMounted = true;
 
     const checkToken = async () => {
       try {
@@ -52,6 +53,8 @@ const ResetPassword = () => {
           fetch(`http://localhost:5000/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`)
         );
         const data = await res.json().catch(() => null);
+
+        if (!isMounted) return;
 
         if (res.ok && data?.valid) {
           setIsTokenValid(true);
@@ -61,15 +64,22 @@ const ResetPassword = () => {
           setApiError(data?.message || "This password reset link is invalid or has expired.");
         }
       } catch (err) {
+        if (!isMounted) return;
         console.error("Token verification failed:", err);
         setIsTokenValid(false);
         setApiError("Unable to verify link with server. Please ensure backend is reachable.");
       } finally {
-        setIsVerifyingToken(false);
+        if (isMounted) {
+          setIsVerifyingToken(false);
+        }
       }
     };
 
     checkToken();
+
+    return () => {
+      isMounted = false;
+    };
   }, [token]);
 
   // Realtime password criteria
