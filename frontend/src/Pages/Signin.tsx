@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { BishopIcon } from "../components/ChessIcons";
-import GoogleButton from "../components/buttons/GoogleButton";
+import GoogleButton from "../components/Buttons/GoogleButton";
 import { signinSchema, type SigninFormData, type SigninFormErrors } from "../lib/schema";
 
 const Signin = () => {

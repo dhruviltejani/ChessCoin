@@ -23,6 +23,7 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/home" element={<Dashboard />} />
           <Route path="*" element={<Navigate to="/signup" replace />} />
         </Routes>
       </BrowserRouter>

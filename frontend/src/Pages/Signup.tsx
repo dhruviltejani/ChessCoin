@@ -22,8 +22,8 @@ import {
 } from "../components/chessPieces";
 import PlayerHandleInput, { type HandleStatus } from "../components/PlayerHandleInput";
 import AvatarSelectionPanel from "../components/AvatarSelectionPanel";
-import GoogleButton from "../components/buttons/GoogleButton";
-import CreateAccountButton from "../components/buttons/CreateAccountButton";
+import GoogleButton from "../components/Buttons/GoogleButton";
+import CreateAccountButton from "../components/Buttons/CreateAccountButton";
 
 const Signup = () => {
   const navigate = useNavigate();
