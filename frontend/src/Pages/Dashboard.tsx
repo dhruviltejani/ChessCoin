@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   Award,
   BarChart2,
-  CheckCircle2,
   Clock,
   Download,
   Eye,
@@ -20,6 +19,7 @@ import {
   Zap,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar/Sidebar";
+import ChessGameView from "../components/chess/ChessGameView";
 
 // --- SUB-COMPONENTS FOR DASHBOARD ---
 
@@ -172,7 +172,6 @@ export const Dashboard = () => {
     state?.user?.handle || state?.registeredHandle || "dhruvil";
   const handle = rawHandle.startsWith("@") ? rawHandle : `@${rawHandle}`;
   const avatarUrl = state?.user?.avatarUrl;
-  const flashMessage = state?.message;
 
   const user = {
     name: displayName,
@@ -226,7 +225,11 @@ export const Dashboard = () => {
       </div>
 
       {/* Main Content Area (Scrollable to the right of the sidebar) */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      <div
+        className={`flex-1 flex flex-col min-w-0 ${
+          activeTab === "play" ? "h-screen overflow-hidden" : "overflow-y-auto"
+        }`}
+      >
         {/* Mobile Top Navbar */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-[#080b11] sticky top-0 z-30">
           <button
@@ -246,15 +249,13 @@ export const Dashboard = () => {
         </header>
 
         {/* Inner Container */}
-        <div className="p-4 sm:p-6 lg:p-7 max-w-[1400px] w-full mx-auto space-y-6">
-          {/* Flash Notification */}
-          {flashMessage && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs sm:text-sm text-emerald-400 animate-in fade-in duration-200">
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-400" />
-              <span>{flashMessage}</span>
-            </div>
-          )}
-
+        <div
+          className={
+            activeTab === "play"
+              ? "flex-1 flex items-center justify-center p-1 sm:p-2 overflow-hidden w-full h-full"
+              : "p-4 sm:p-6 lg:p-7 max-w-[1400px] w-full mx-auto space-y-6"
+          }
+        >
           {/* Render Home Dashboard View if activeTab is 'home' */}
           {activeTab === "home" ? (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
@@ -900,6 +901,11 @@ export const Dashboard = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          ) : activeTab === "play" ? (
+            /* Chess Play Area matching the reference design */
+            <div className="w-full h-full flex items-center justify-center overflow-hidden py-1">
+              <ChessGameView />
             </div>
           ) : (
             /* Alternate view when other sidebar navigation tabs are clicked */
