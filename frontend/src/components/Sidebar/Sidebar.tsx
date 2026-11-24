@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart2,
   Bell,
@@ -58,13 +59,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
   },
   className = "",
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [internalActive, setInternalActive] = useState(defaultActiveItem);
-  const currentActive = (activeItem !== undefined ? activeItem : internalActive).toLowerCase();
+  const currentPath = location.pathname;
+  const pathBasedItem = currentPath.startsWith("/tournaments")
+    ? "tournaments"
+    : currentPath.startsWith("/dashboard") || currentPath.startsWith("/home")
+    ? "home"
+    : internalActive;
+
+  const currentActive = (activeItem !== undefined ? activeItem : pathBasedItem).toLowerCase();
 
   const handleSelect = (id: string) => {
     setInternalActive(id);
     if (onItemClick) {
       onItemClick(id);
+    }
+    if (id === "tournaments" && !location.pathname.startsWith("/tournaments")) {
+      navigate("/tournaments", { state: { user } });
+    } else if (
+      id === "home" &&
+      !location.pathname.startsWith("/dashboard") &&
+      !location.pathname.startsWith("/home")
+    ) {
+      navigate("/dashboard", { state: { user } });
     }
   };
 

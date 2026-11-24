@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -155,6 +155,7 @@ const MomentumSparkline: React.FC = () => (
 
 export const Dashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<string>("home");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
@@ -185,7 +186,13 @@ export const Dashboard = () => {
       <div className="hidden md:flex shrink-0">
         <Sidebar
           activeItem={activeTab}
-          onItemClick={(id) => setActiveTab(id)}
+          onItemClick={(id) => {
+            if (id === "tournaments") {
+              navigate("/tournaments", { state: { user } });
+            } else {
+              setActiveTab(id);
+            }
+          }}
           user={user}
         />
       </div>
@@ -216,8 +223,12 @@ export const Dashboard = () => {
           <Sidebar
             activeItem={activeTab}
             onItemClick={(id) => {
-              setActiveTab(id);
               setMobileSidebarOpen(false);
+              if (id === "tournaments") {
+                navigate("/tournaments", { state: { user } });
+              } else {
+                setActiveTab(id);
+              }
             }}
             user={user}
           />
@@ -429,7 +440,7 @@ export const Dashboard = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActiveTab("tournaments")}
+                      onClick={() => navigate("/tournaments", { state: { user } })}
                       className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
                     >
                       <span>Browse All (14)</span>
@@ -467,7 +478,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveTab("tournaments")}
+                        onClick={() => navigate("/tournaments", { state: { user } })}
                         className="mt-4 w-full bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20 active:scale-[0.98] transition cursor-pointer"
                       >
                         <span>ENTER ARENA</span>
@@ -500,7 +511,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveTab("tournaments")}
+                        onClick={() => navigate("/tournaments", { state: { user } })}
                         className="mt-4 w-full border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -533,7 +544,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => setActiveTab("tournaments")}
+                        onClick={() => navigate("/tournaments", { state: { user } })}
                         className="mt-4 w-full border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Eye className="h-3.5 w-3.5" />

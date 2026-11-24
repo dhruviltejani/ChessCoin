@@ -7,6 +7,7 @@ import ResetPassword from "./Pages/ResetPassword";
 import CompleteProfile from "./Pages/CompleteProfile";
 import Dashboard from "./Pages/Dashboard";
 import PlayPage from "./Pages/Play";
+import Tournaments from "./Pages/Tournaments";
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID || "chesscoin-app.apps.googleusercontent.com";
@@ -25,6 +26,7 @@ function App() {
           <Route path="/complete-profile" element={<CompleteProfile />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/home" element={<Dashboard />} />
+          <Route path="/tournaments" element={<Tournaments />} />
           <Route path="/play" element={<PlayPage />} />
           <Route path="*" element={<Navigate to="/signup" replace />} />
         </Routes>
