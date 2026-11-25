@@ -19,7 +19,6 @@ import {
   Zap,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar/Sidebar";
-import ChessGameView from "../components/chess/ChessGameView";
 
 // --- SUB-COMPONENTS FOR DASHBOARD ---
 
@@ -153,10 +152,19 @@ const MomentumSparkline: React.FC = () => (
 
 // --- MAIN DASHBOARD COMPONENT ---
 
+const DASHBOARD_TABS = new Set([
+  "tournaments",
+  "leagues",
+  "leaderboard",
+  "messages",
+  "friends",
+  "notifications",
+  "settings",
+]);
+
 export const Dashboard = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>("home");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
 
   // Extract logged in user details if available, or fall back to default
@@ -165,7 +173,30 @@ export const Dashboard = () => {
     displayName?: string;
     registeredHandle?: string;
     message?: string;
+    activeTab?: string;
   } | null;
+
+  const pathTab = location.pathname.replace(/^\/+/, "").toLowerCase();
+  const activeTab = DASHBOARD_TABS.has(pathTab)
+    ? pathTab
+    : state?.activeTab && DASHBOARD_TABS.has(state.activeTab.toLowerCase())
+      ? state.activeTab.toLowerCase()
+      : "home";
+
+  const handleNavigateTab = (id: string) => {
+    const target = id.toLowerCase();
+    if (target === "play") {
+      navigate("/play", { state: location.state });
+      return;
+    }
+    if (target === "home") {
+      navigate("/dashboard", { state: location.state });
+      return;
+    }
+    if (DASHBOARD_TABS.has(target)) {
+      navigate(`/${target}`, { state: location.state });
+    }
+  };
 
   const displayName =
     state?.user?.displayName || state?.displayName || "Dhruvil";
@@ -186,13 +217,7 @@ export const Dashboard = () => {
       <div className="hidden md:flex shrink-0">
         <Sidebar
           activeItem={activeTab}
-          onItemClick={(id) => {
-            if (id === "tournaments") {
-              navigate("/tournaments", { state: { user } });
-            } else {
-              setActiveTab(id);
-            }
-          }}
+          onItemClick={handleNavigateTab}
           user={user}
         />
       </div>
@@ -223,12 +248,8 @@ export const Dashboard = () => {
           <Sidebar
             activeItem={activeTab}
             onItemClick={(id) => {
+              handleNavigateTab(id);
               setMobileSidebarOpen(false);
-              if (id === "tournaments") {
-                navigate("/tournaments", { state: { user } });
-              } else {
-                setActiveTab(id);
-              }
             }}
             user={user}
           />
@@ -236,11 +257,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Main Content Area (Scrollable to the right of the sidebar) */}
-      <div
-        className={`flex-1 flex flex-col min-w-0 ${
-          activeTab === "play" ? "h-screen overflow-hidden" : "overflow-y-auto"
-        }`}
-      >
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         {/* Mobile Top Navbar */}
         <header className="flex md:hidden items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-[#080b11] sticky top-0 z-30">
           <button
@@ -260,13 +277,7 @@ export const Dashboard = () => {
         </header>
 
         {/* Inner Container */}
-        <div
-          className={
-            activeTab === "play"
-              ? "flex-1 flex items-center justify-center p-1 sm:p-2 overflow-hidden w-full h-full"
-              : "p-4 sm:p-6 lg:p-7 max-w-[1400px] w-full mx-auto space-y-6"
-          }
-        >
+        <div className="p-4 sm:p-6 lg:p-7 max-w-[1400px] w-full mx-auto space-y-6">
           {/* Render Home Dashboard View if activeTab is 'home' */}
           {activeTab === "home" ? (
             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
@@ -291,7 +302,7 @@ export const Dashboard = () => {
                       description="Fast & high-intensity reflex calculation"
                       rating={1428}
                       delta="+12"
-                      onClick={() => setActiveTab("play")}
+                      onClick={() => handleNavigateTab("play")}
                     />
                     <QuickPlayCard
                       category="BLITZ"
@@ -300,7 +311,7 @@ export const Dashboard = () => {
                       description="Fast competitive tactical games"
                       rating={1542}
                       delta="+24"
-                      onClick={() => setActiveTab("play")}
+                      onClick={() => handleNavigateTab("play")}
                     />
                     <QuickPlayCard
                       category="RAPID"
@@ -309,7 +320,7 @@ export const Dashboard = () => {
                       description="Balanced strategic & positional play"
                       rating={1618}
                       delta="+8"
-                      onClick={() => setActiveTab("play")}
+                      onClick={() => handleNavigateTab("play")}
                     />
                     <QuickPlayCard
                       category="CLASSICAL"
@@ -318,7 +329,7 @@ export const Dashboard = () => {
                       description="Deep intellectual calculation & endgames"
                       rating={1684}
                       delta="+5"
-                      onClick={() => setActiveTab("play")}
+                      onClick={() => handleNavigateTab("play")}
                     />
                   </div>
                 </section>
@@ -346,14 +357,14 @@ export const Dashboard = () => {
                     <div className="flex items-center gap-2.5">
                       <button
                         type="button"
-                        onClick={() => setActiveTab("leagues")}
+                        onClick={() => handleNavigateTab("leagues")}
                         className="px-3.5 py-2 rounded-xl border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-white transition cursor-pointer"
                       >
                         VIEW LEAGUE
                       </button>
                       <button
                         type="button"
-                        onClick={() => setActiveTab("play")}
+                        onClick={() => handleNavigateTab("play")}
                         className="px-4 py-2 rounded-xl bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-lg shadow-cyan-500/20 active:scale-[0.98] transition cursor-pointer"
                       >
                         <Swords className="h-4 w-4 stroke-[2.2]" />
@@ -440,7 +451,7 @@ export const Dashboard = () => {
                     </div>
                     <button
                       type="button"
-                      onClick={() => navigate("/tournaments", { state: { user } })}
+                      onClick={() => handleNavigateTab("tournaments")}
                       className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition self-start sm:self-auto"
                     >
                       <span>Browse All (14)</span>
@@ -478,7 +489,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigate("/tournaments", { state: { user } })}
+                        onClick={() => handleNavigateTab("tournaments")}
                         className="mt-4 w-full bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 font-bold text-xs py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-cyan-500/20 active:scale-[0.98] transition cursor-pointer"
                       >
                         <span>ENTER ARENA</span>
@@ -511,7 +522,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigate("/tournaments", { state: { user } })}
+                        onClick={() => handleNavigateTab("tournaments")}
                         className="mt-4 w-full border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -544,7 +555,7 @@ export const Dashboard = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => navigate("/tournaments", { state: { user } })}
+                        onClick={() => handleNavigateTab("tournaments")}
                         className="mt-4 w-full border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                       >
                         <Eye className="h-3.5 w-3.5" />
@@ -838,7 +849,7 @@ export const Dashboard = () => {
 
                     <button
                       type="button"
-                      onClick={() => setActiveTab("leagues")}
+                      onClick={() => handleNavigateTab("leagues")}
                       className="mt-3.5 w-full py-2 px-3 rounded-xl border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-xs font-bold text-zinc-300 hover:text-white flex items-center justify-center gap-1 transition cursor-pointer"
                     >
                       <span>VIEW STATS</span>
@@ -913,11 +924,6 @@ export const Dashboard = () => {
                 </div>
               </div>
             </div>
-          ) : activeTab === "play" ? (
-            /* Chess Play Area matching the reference design */
-            <div className="w-full h-full flex items-center justify-center overflow-hidden py-1">
-              <ChessGameView />
-            </div>
           ) : (
             /* Alternate view when other sidebar navigation tabs are clicked */
             <div className="space-y-6">
@@ -930,7 +936,7 @@ export const Dashboard = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setActiveTab("home")}
+                  onClick={() => handleNavigateTab("home")}
                   className="px-4 py-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 text-xs font-semibold flex items-center gap-2 transition cursor-pointer"
                 >
                   <span>← Back to Home Dashboard</span>
@@ -945,13 +951,22 @@ export const Dashboard = () => {
                 <p className="text-xs text-zinc-400 max-w-md mx-auto">
                   You are viewing the {activeTab} panel. Click "Home" in the sidebar anytime to return to your main dashboard overview.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("home")}
-                  className="mt-3 px-5 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 text-xs font-bold inline-flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer transition"
-                >
-                  <span>Return to Home</span>
-                </button>
+                <div className="mt-3 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateTab("play")}
+                    className="px-5 py-2.5 rounded-xl bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 text-xs font-bold inline-flex items-center gap-2 shadow-lg shadow-cyan-500/20 cursor-pointer transition"
+                  >
+                    <span>Go to Play</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateTab("home")}
+                    className="px-5 py-2.5 rounded-xl border border-zinc-700/80 bg-zinc-800/40 hover:bg-zinc-800 text-zinc-200 text-xs font-bold inline-flex items-center gap-2 cursor-pointer transition"
+                  >
+                    <span>Return to Home</span>
+                  </button>
+                </div>
               </div>
             </div>
           )}

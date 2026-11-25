@@ -66,6 +66,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const currentPath = location.pathname;
   const pathBasedItem = currentPath.startsWith("/tournaments")
     ? "tournaments"
+    : currentPath.startsWith("/play")
+    ? "play"
     : currentPath.startsWith("/dashboard") || currentPath.startsWith("/home")
     ? "home"
     : internalActive;
@@ -73,18 +75,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const currentActive = (activeItem !== undefined ? activeItem : pathBasedItem).toLowerCase();
 
   const handleSelect = (id: string) => {
-    setInternalActive(id);
+    const target = id.toLowerCase();
+    setInternalActive(target);
     if (onItemClick) {
-      onItemClick(id);
+      onItemClick(target);
+      return;
     }
-    if (id === "tournaments" && !location.pathname.startsWith("/tournaments")) {
-      navigate("/tournaments", { state: { user } });
-    } else if (
-      id === "home" &&
-      !location.pathname.startsWith("/dashboard") &&
-      !location.pathname.startsWith("/home")
-    ) {
-      navigate("/dashboard", { state: { user } });
+    const route = target === "home" ? "/dashboard" : `/${target}`;
+    if (location.pathname !== route) {
+      navigate(route, { state: location.state ?? { user } });
     }
   };
 

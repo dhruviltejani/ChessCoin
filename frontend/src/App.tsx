@@ -27,6 +27,12 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/home" element={<Dashboard />} />
           <Route path="/tournaments" element={<Tournaments />} />
+          <Route path="/leagues" element={<Dashboard />} />
+          <Route path="/leaderboard" element={<Dashboard />} />
+          <Route path="/messages" element={<Dashboard />} />
+          <Route path="/friends" element={<Dashboard />} />
+          <Route path="/notifications" element={<Dashboard />} />
+          <Route path="/settings" element={<Dashboard />} />
           <Route path="/play" element={<PlayPage />} />
           <Route path="*" element={<Navigate to="/signup" replace />} />
         </Routes>

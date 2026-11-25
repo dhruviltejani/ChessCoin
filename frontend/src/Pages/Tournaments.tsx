@@ -146,17 +146,23 @@ export const Tournaments: React.FC = () => {
     setActiveModal({ type: null });
   };
 
+  const handleSidebarClick = (id: string) => {
+    const target = id.toLowerCase();
+    if (target === "tournaments") return;
+    if (target === "home") {
+      navigate("/dashboard", { state: location.state });
+      return;
+    }
+    navigate(`/${target}`, { state: location.state });
+  };
+
   return (
     <div className="flex h-screen w-full bg-[#07090e] text-white overflow-hidden selection:bg-cyan-500/30 selection:text-cyan-200 font-sans">
       {/* Desktop Sidebar (Fixed on left) */}
       <div className="hidden md:flex shrink-0">
         <Sidebar
           activeItem="tournaments"
-          onItemClick={(id) => {
-            if (id === "home") {
-              navigate("/dashboard", { state: { user } });
-            }
-          }}
+          onItemClick={handleSidebarClick}
           user={user}
         />
       </div>
@@ -187,10 +193,8 @@ export const Tournaments: React.FC = () => {
           <Sidebar
             activeItem="tournaments"
             onItemClick={(id) => {
+              handleSidebarClick(id);
               setMobileSidebarOpen(false);
-              if (id === "home") {
-                navigate("/dashboard", { state: { user } });
-              }
             }}
             user={user}
           />

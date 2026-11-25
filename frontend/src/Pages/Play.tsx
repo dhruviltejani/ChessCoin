@@ -7,7 +7,6 @@ import ChessGameView from "../components/chess/ChessGameView";
 export const PlayPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<string>("play");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
 
@@ -30,11 +29,13 @@ export const PlayPage = () => {
   };
 
   const handleSidebarItemClick = (id: string) => {
-    if (id === "home") {
-      navigate("/dashboard");
-    } else {
-      setActiveTab(id);
+    const target = id.toLowerCase();
+    if (target === "play") return;
+    if (target === "home") {
+      navigate("/dashboard", { state: location.state });
+      return;
     }
+    navigate(`/${target}`, { state: location.state });
   };
 
   return (
@@ -43,7 +44,7 @@ export const PlayPage = () => {
       {!isFocusMode && (
         <div className="hidden md:flex shrink-0 animate-in fade-in duration-200">
           <Sidebar
-            activeItem={activeTab}
+            activeItem="play"
             onItemClick={handleSidebarItemClick}
             user={user}
           />
@@ -74,7 +75,7 @@ export const PlayPage = () => {
             <X className="h-5 w-5" />
           </button>
           <Sidebar
-            activeItem={activeTab}
+            activeItem="play"
             onItemClick={(id) => {
               handleSidebarItemClick(id);
               setMobileSidebarOpen(false);
