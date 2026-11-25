@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Chess, type Square } from "chess.js";
-import { Chessboard } from "react-chessboard";
-import { ChessPieces } from "./ChessPieces";
+import { Chessboard, defaultPieces } from "react-chessboard";
 import EvalBar from "./EvalBar";
 import PlayerCard from "./PlayerCard";
 import BoardControls from "./BoardControls";
@@ -575,7 +574,7 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         if (isGameOver) return false;
         return piece.pieceType.startsWith(game.turn());
       },
-      pieces: ChessPieces,
+      pieces: defaultPieces,
       boardStyle: {
         width: "100%",
         height: "100%",
