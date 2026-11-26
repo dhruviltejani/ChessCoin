@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   Award,
   BarChart2,
+  Bot,
   Clock,
   Download,
   Eye,
@@ -19,6 +20,8 @@ import {
   Zap,
 } from "lucide-react";
 import Sidebar from "../components/Sidebar/Sidebar";
+import BotAvatar from "../components/chess/BotAvatar";
+import { CHESS_BOTS } from "../data/chessBots";
 
 // --- SUB-COMPONENTS FOR DASHBOARD ---
 
@@ -189,6 +192,10 @@ export const Dashboard = () => {
       navigate("/play", { state: location.state });
       return;
     }
+    if (target === "bots") {
+      navigate("/bots", { state: location.state });
+      return;
+    }
     if (target === "home") {
       navigate("/dashboard", { state: location.state });
       return;
@@ -331,6 +338,73 @@ export const Dashboard = () => {
                       delta="+5"
                       onClick={() => handleNavigateTab("play")}
                     />
+                  </div>
+                </section>
+
+                {/* 1B. PLAY CHESS BOTS SECTION */}
+                <section>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Bot className="h-4 w-4 text-cyan-400" />
+                      <h2 className="text-xs sm:text-sm font-bold tracking-wider text-white uppercase">
+                        PLAY VS CHESS BOTS
+                      </h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigateTab("bots")}
+                      className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 cursor-pointer transition"
+                    >
+                      <span>Bot Arena</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                    {CHESS_BOTS.map((bot) => (
+                      <button
+                        key={bot.id}
+                        type="button"
+                        onClick={() =>
+                          navigate("/play", {
+                            state: {
+                              ...(state || {}),
+                              botId: bot.id,
+                              playerColor: "w",
+                            },
+                          })
+                        }
+                        className={`text-left rounded-2xl bg-[#0c101a]/90 border ${bot.borderClass} hover:bg-[#111726]/90 p-3.5 flex flex-col justify-between transition-all duration-200 group cursor-pointer shadow-lg`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase tracking-wider border ${bot.badgeBgClass} ${bot.badgeTextClass}`}
+                            >
+                              {bot.tierLabel}
+                            </span>
+                            <span className="text-[10px] font-mono font-bold text-zinc-400">
+                              {bot.rating}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <BotAvatar bot={bot} size="sm" />
+                            <div className="min-w-0">
+                              <div className="text-xs sm:text-sm font-bold text-white truncate">
+                                {bot.name}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 truncate">
+                                {bot.title}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-cyan-400 font-semibold group-hover:text-cyan-300">
+                          <span>Challenge</span>
+                          <Swords className="w-3.5 h-3.5" />
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 </section>
 

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import {
   ArrowUpDown,
+  Bot,
   ChevronFirst,
   ChevronLast,
   ChevronLeft,
@@ -22,6 +23,9 @@ interface BoardControlsProps {
   isGameOver: boolean;
   isFocusMode: boolean;
   isAnalysisOn: boolean;
+  repetitionCount?: number;
+  activeBotName?: string | null;
+  onOpenBotSelector?: () => void;
   onToggleAnalysis: () => void;
   onToggleFocusMode: () => void;
   onFirstMove: () => void;
@@ -42,6 +46,9 @@ export const BoardControls: React.FC<BoardControlsProps> = ({
   isGameOver,
   isFocusMode,
   isAnalysisOn,
+  repetitionCount = 1,
+  activeBotName = null,
+  onOpenBotSelector,
   onToggleAnalysis,
   onToggleFocusMode,
   onFirstMove,
@@ -129,8 +136,37 @@ export const BoardControls: React.FC<BoardControlsProps> = ({
         </button>
       </div>
 
-      {/* Right: Utilities (Analysis Toggle, Focus Mode, Resign, Flip, Export PGN, Share) */}
+      {/* Right: Utilities (Repetition Alert, Bots, Analysis Toggle, Focus Mode, Resign, Flip, Export PGN, Share) */}
       <div className="flex items-center gap-1 sm:gap-1.5">
+        {repetitionCount === 2 && !isGameOver && (
+          <span
+            title="This position has occurred twice. One more repetition triggers a Draw by Repetition."
+            className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 border border-amber-500/40 text-amber-300 animate-pulse shrink-0"
+          >
+            2× Repeat
+          </span>
+        )}
+
+        {/* Opponent / Bots Selector Button */}
+        {onOpenBotSelector && (
+          <button
+            type="button"
+            onClick={onOpenBotSelector}
+            title="Switch Bot Opponent or Pass & Play"
+            className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition cursor-pointer border ${
+              activeBotName
+                ? "bg-cyan-500/15 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/25"
+                : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800/60"
+            }`}
+          >
+            <Bot className={`h-3 w-3 ${activeBotName ? "text-cyan-400" : "text-zinc-400"}`} />
+            <span className="hidden sm:inline truncate max-w-[90px]">
+              {activeBotName || "Play Bots"}
+            </span>
+            <span className="sm:hidden">Bots</span>
+          </button>
+        )}
+
         {/* Analysis Toggle Switch (Stockfish on/off) */}
         <button
           type="button"

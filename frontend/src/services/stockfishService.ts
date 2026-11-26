@@ -52,6 +52,7 @@ class StockfishManager {
   public isReady = false;
   private currentCallback: ((evalResult: StockfishEvaluation) => void) | null = null;
   private fallbackEnabled = false;
+  private evalQueue: Promise<void> = Promise.resolve();
 
   constructor() {
     this.initWorker();
@@ -136,38 +137,52 @@ class StockfishManager {
       return Promise.resolve(this.heuristicEvaluation(fen));
     }
 
-    return new Promise<StockfishEvaluation>((resolve) => {
-      let latestEval: StockfishEvaluation = { cp: 0 };
-      const timeout = setTimeout(() => {
-        resolve(latestEval.cp !== undefined || latestEval.mate !== undefined ? latestEval : this.heuristicEvaluation(fen));
-      }, 400);
-
-      this.currentCallback = (result) => {
-        if (result.cp !== undefined || result.mate !== undefined) {
-          latestEval = { ...latestEval, ...result };
-        }
-        if (result.bestMove) {
-          latestEval.bestMove = result.bestMove;
-          clearTimeout(timeout);
+    const run = this.evalQueue.then(() =>
+      new Promise<StockfishEvaluation>((resolve) => {
+        let latestEval: StockfishEvaluation = { cp: 0 };
+        const timeout = setTimeout(() => {
           this.currentCallback = null;
-          resolve(latestEval);
-        }
-      };
+          resolve(
+            latestEval.cp !== undefined || latestEval.mate !== undefined
+              ? latestEval
+              : this.heuristicEvaluation(fen)
+          );
+        }, 450);
 
-      this.sendCommand("stop");
-      this.sendCommand(`position fen ${fen}`);
-      this.sendCommand(`go depth ${depth}`);
-    }).then((ev) => {
-      const isBlackTurn = fen.split(" ")[1] === "b";
-      // Normalize score so positive = White advantage
-      if (isBlackTurn && ev.cp !== undefined) {
-        ev.cp = -ev.cp;
-      }
-      if (isBlackTurn && ev.mate !== undefined) {
-        ev.mate = -ev.mate;
-      }
-      return ev;
-    });
+        this.currentCallback = (result) => {
+          if (result.cp !== undefined || result.mate !== undefined) {
+            latestEval = { ...latestEval, ...result };
+          }
+          if (result.bestMove) {
+            latestEval.bestMove = result.bestMove;
+            clearTimeout(timeout);
+            this.currentCallback = null;
+            resolve(latestEval);
+          }
+        };
+
+        this.sendCommand("stop");
+        this.sendCommand(`position fen ${fen}`);
+        this.sendCommand(`go depth ${depth}`);
+      }).then((ev) => {
+        const isBlackTurn = fen.split(" ")[1] === "b";
+        // Normalize score so positive = White advantage
+        if (isBlackTurn && ev.cp !== undefined) {
+          ev.cp = -ev.cp;
+        }
+        if (isBlackTurn && ev.mate !== undefined) {
+          ev.mate = -ev.mate;
+        }
+        return ev;
+      })
+    );
+
+    this.evalQueue = run.then(
+      () => undefined,
+      () => undefined
+    );
+
+    return run;
   }
 
   /**
