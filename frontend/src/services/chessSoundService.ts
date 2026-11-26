@@ -91,6 +91,35 @@ class ChessSoundManager {
       // AudioContext muted or blocked
     }
   }
+
+  // Neutral two-tone chime for Draw / Repetition
+  public playDraw() {
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+
+      const notes = [440, 392];
+      notes.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = ctx.currentTime + idx * 0.11;
+
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0.25, start);
+        gain.gain.exponentialRampToValueAtTime(0.01, start + 0.14);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.14);
+      });
+    } catch {
+      // AudioContext muted or blocked
+    }
+  }
 }
 
 export const chessSound = new ChessSoundManager();

@@ -10,17 +10,21 @@ export const PlayPage = () => {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [isFocusMode, setIsFocusMode] = useState<boolean>(false);
 
-  // Extract user info if passed via router state
+  // Extract user info and optional bot selection if passed via router state
   const state = location.state as {
     user?: { displayName?: string; handle?: string; email?: string; avatarUrl?: string };
     displayName?: string;
     registeredHandle?: string;
+    botId?: string;
+    playerColor?: "w" | "b";
   } | null;
 
   const displayName = state?.user?.displayName || state?.displayName || "Dhruvil";
   const rawHandle = state?.user?.handle || state?.registeredHandle || "dhruvil";
   const handle = rawHandle.startsWith("@") ? rawHandle : `@${rawHandle}`;
   const avatarUrl = state?.user?.avatarUrl;
+  const initialBotId = state?.botId || null;
+  const initialPlayerColor = state?.playerColor || "w";
 
   const user = {
     name: displayName,
@@ -108,8 +112,12 @@ export const PlayPage = () => {
         {/* Inner Container: Perfectly centered and shrunk to fit without scroll */}
         <div className="flex-1 flex items-center justify-center p-1 sm:p-2 overflow-hidden w-full h-full">
           <ChessGameView
+            key={`${initialBotId || "local"}-${initialPlayerColor}`}
             isFocusMode={isFocusMode}
             onToggleFocusMode={() => setIsFocusMode((prev) => !prev)}
+            initialBotId={initialBotId}
+            initialPlayerColor={initialPlayerColor}
+            playerName={displayName}
           />
         </div>
       </div>

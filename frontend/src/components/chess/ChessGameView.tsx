@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Chess, type Square } from "chess.js";
-import { Chessboard } from "react-chessboard";
-import { ChessPieces } from "./ChessPieces";
+import { Chessboard, defaultPieces } from "react-chessboard";
+import { Bot, X } from "lucide-react";
 import EvalBar from "./EvalBar";
 import PlayerCard from "./PlayerCard";
 import BoardControls from "./BoardControls";
 import PlayerAccuracyCard from "./PlayerAccuracyCard";
 import NotationLedger from "./NotationLedger";
 import MoveClassificationCard from "./MoveClassificationCard";
+import BotSelectorModal from "./BotSelectorModal";
 import {
   stockfish,
   classifyMove,
@@ -15,24 +16,56 @@ import {
   type EvaluatedMove,
 } from "../../services/stockfishService";
 import { chessSound } from "../../services/chessSoundService";
+import {
+  getChessBotById,
+  pickRandomDialogue,
+  type ChessBot,
+} from "../../data/chessBots";
+import { chessBotEngine } from "../../services/chessBotEngine";
 
 interface ChessGameViewProps {
   isFocusMode?: boolean;
   onToggleFocusMode?: () => void;
+  initialBotId?: string | null;
+  initialPlayerColor?: "w" | "b";
+  playerName?: string;
 }
 
 export const ChessGameView: React.FC<ChessGameViewProps> = ({
   isFocusMode: externalFocusMode,
   onToggleFocusMode: externalToggleFocusMode,
+  initialBotId = null,
+  initialPlayerColor = "w",
+  playerName = "Dhruvil",
 }) => {
+  // 0. Bot & Player Color State
+  const [selectedBot, setSelectedBot] = useState<ChessBot | null>(() =>
+    getChessBotById(initialBotId)
+  );
+  const [playerColor, setPlayerColor] = useState<"w" | "b">(initialPlayerColor);
+  const [botDialogue, setBotDialogue] = useState<string | null>(() => {
+    const bot = getChessBotById(initialBotId);
+    return bot ? pickRandomDialogue(bot.dialogue.onStart) : null;
+  });
+  const [isBotModalOpen, setIsBotModalOpen] = useState<boolean>(false);
+  const gameGenerationRef = useRef<number>(0);
+
   // 1. Core chess.js game state instance
   const [game, setGame] = useState<Chess>(() => new Chess());
-  const [boardOrientation, setBoardOrientation] = useState<"white" | "black">("white");
+  const [boardOrientation, setBoardOrientation] = useState<"white" | "black">(
+    initialBotId && initialPlayerColor === "b" ? "black" : "white"
+  );
 
   // Focus Mode state
   const [internalFocusMode, setInternalFocusMode] = useState(false);
   const isFocusMode = externalFocusMode !== undefined ? externalFocusMode : internalFocusMode;
-  const toggleFocusMode = externalToggleFocusMode || (() => setInternalFocusMode((prev) => !prev));
+  const toggleFocusMode = useCallback(() => {
+    if (externalToggleFocusMode) {
+      externalToggleFocusMode();
+    } else {
+      setInternalFocusMode((prev) => !prev);
+    }
+  }, [externalToggleFocusMode]);
 
   // Analysis Toggle (Stockfish functions: EvalBar, Accuracy, Move Classification)
   const [isAnalysisOn, setIsAnalysisOn] = useState<boolean>(false);
@@ -47,10 +80,15 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
   const [whiteAccuracy, setWhiteAccuracy] = useState<number>(100);
   const [blackAccuracy, setBlackAccuracy] = useState<number>(100);
 
-  // 4. Square selections and legal move dots
+  // 4. Square selections, legal move dots, and pending pawn promotion
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [legalMoves, setLegalMoves] = useState<Square[]>([]);
   const [lastMove, setLastMove] = useState<{ from: Square; to: Square } | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<{
+    from: Square;
+    to: Square;
+    color: "w" | "b";
+  } | null>(null);
 
   // 5. Game Over state
   const [isGameOver, setIsGameOver] = useState<boolean>(false);
@@ -67,6 +105,39 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
   // Determine current active turn
   const isViewingCurrent = currentMoveIndex === moveHistory.length - 1;
   const currentTurn = game.turn(); // 'w' | 'b'
+  const botColor: "w" | "b" = playerColor === "w" ? "b" : "w";
+  const isBotThinking = Boolean(selectedBot) && !isGameOver && isViewingCurrent && currentTurn === botColor;
+
+  // Reset helper
+  const resetBoardForMatch = useCallback(
+    (nextBot: ChessBot | null, nextPlayerColor: "w" | "b") => {
+      gameGenerationRef.current += 1;
+      const newG = new Chess();
+      setGame(newG);
+      setMoveHistory([]);
+      setHistoryFens([newG.fen()]);
+      setCurrentMoveIndex(-1);
+      setIsGameOver(false);
+      setGameResult("In Progress");
+      setCurrentEval({ cp: 0 });
+      setWhiteAccuracy(100);
+      setBlackAccuracy(100);
+      setCapturedByWhite([]);
+      setCapturedByBlack([]);
+      setSelectedSquare(null);
+      setLegalMoves([]);
+      setLastMove(null);
+      setPendingPromotion(null);
+      setIsPlayingReplay(false);
+      if (replayTimerRef.current) clearInterval(replayTimerRef.current);
+
+      setSelectedBot(nextBot);
+      setPlayerColor(nextPlayerColor);
+      setBoardOrientation(nextBot && nextPlayerColor === "b" ? "black" : "white");
+      setBotDialogue(nextBot ? pickRandomDialogue(nextBot.dialogue.onStart) : null);
+    },
+    []
+  );
 
   // Escape key exits focus mode
   useEffect(() => {
@@ -82,8 +153,21 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
   // Handle Resign
   const handleResign = () => {
     if (isGameOver) return;
-    const currentSide = game.turn();
+    gameGenerationRef.current += 1;
+    setPendingPromotion(null);
     setIsGameOver(true);
+
+    if (selectedBot) {
+      if (playerColor === "w") {
+        setGameResult(`0-1 (${playerName} resigned)`);
+      } else {
+        setGameResult(`1-0 (${playerName} resigned)`);
+      }
+      setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onWin));
+      return;
+    }
+
+    const currentSide = game.turn();
     if (currentSide === "w") {
       setGameResult("0-1 (White resigned)");
     } else {
@@ -93,27 +177,14 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
 
   // Reset Game / Play Again
   const handlePlayAgain = () => {
-    const newG = new Chess();
-    setGame(newG);
-    setMoveHistory([]);
-    setHistoryFens([newG.fen()]);
-    setCurrentMoveIndex(-1);
-    setIsGameOver(false);
-    setGameResult("In Progress");
-    setCurrentEval({ cp: 0 }); // Cleanly reset eval bar to 50%
-    setWhiteAccuracy(100);
-    setBlackAccuracy(100);
-    setCapturedByWhite([]);
-    setCapturedByBlack([]);
-    setSelectedSquare(null);
-    setLegalMoves([]);
-    setLastMove(null);
+    resetBoardForMatch(selectedBot, playerColor);
   };
 
   // Helper to show legal moves when piece is clicked or dragged
   const showLegalMovesForSquare = useCallback(
     (sq: Square) => {
       if (isGameOver) return;
+      if (selectedBot && (game.turn() !== playerColor || isBotThinking)) return;
       const piece = game.get(sq);
       if (piece && piece.color === game.turn()) {
         setSelectedSquare(sq);
@@ -121,8 +192,38 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         setLegalMoves(moves.map((m) => m.to as Square));
       }
     },
-    [game, isGameOver]
+    [game, isGameOver, selectedBot, playerColor, isBotThinking]
   );
+
+  // Helper to rebuild a Chess instance preserving full move history & repetition counts
+  const rebuildGameFromHistory = useCallback(
+    (moves: EvaluatedMove[], upToIndex: number): Chess => {
+      const rebuilt = new Chess();
+      for (let i = 0; i <= upToIndex; i++) {
+        const mv = moves[i];
+        if (mv) {
+          rebuilt.move(mv.san);
+        }
+      }
+      return rebuilt;
+    },
+    []
+  );
+
+  // Count how many times the currently viewed board position has appeared (FIDE 4-field key)
+  const currentRepetitionCount = useMemo(() => {
+    const activeFenIndex = currentMoveIndex + 1;
+    const currentFen = historyFens[activeFenIndex];
+    if (!currentFen) return 1;
+    const targetKey = currentFen.split(" ").slice(0, 4).join(" ");
+    let count = 0;
+    for (let i = 0; i <= activeFenIndex && i < historyFens.length; i++) {
+      if (historyFens[i].split(" ").slice(0, 4).join(" ") === targetKey) {
+        count++;
+      }
+    }
+    return count;
+  }, [historyFens, currentMoveIndex]);
 
   // Execute a chess move (INSTANT 0ms RESPONSIVENESS like Chess.com, with background Stockfish eval)
   const makeMove = useCallback(
@@ -132,11 +233,10 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         return false;
       }
 
-      const prevFen = game.fen();
       const prevEval = { ...currentEval };
 
-      // Clone game instance to make move
-      const newGame = new Chess(prevFen);
+      // Clone full game history so threefold repetition, 50-move rule, and PGN remain intact
+      const newGame = rebuildGameFromHistory(moveHistory, moveHistory.length - 1);
       try {
         const result = newGame.move(moveObj);
         if (!result) return false;
@@ -146,9 +246,13 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         const isCapture = Boolean(result.captured);
         const isCheck = newGame.inCheck();
         const isCheckmate = newGame.isCheckmate();
+        const isThreefoldRepetition = newGame.isThreefoldRepetition();
+        const isDraw = newGame.isDraw();
 
         // 1. Play sound immediately
-        if (isCheck) {
+        if (isDraw && !isCheckmate) {
+          chessSound.playDraw();
+        } else if (isCheck) {
           chessSound.playCheck();
         } else if (isCapture) {
           chessSound.playCapture();
@@ -204,20 +308,53 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         setCurrentMoveIndex(moveIdx);
         setHistoryFens((prev) => [...prev, newFen]);
 
-        // 4. Check game over immediately
+        // 4. Contextual Bot Banter & Game Over check
         if (isCheckmate) {
           setIsGameOver(true);
           setGameResult(color === "w" ? "1-0 (Checkmate)" : "0-1 (Checkmate)");
-        } else if (newGame.isDraw()) {
+          if (selectedBot) {
+            const botWon = color === botColor;
+            setBotDialogue(
+              pickRandomDialogue(
+                botWon ? selectedBot.dialogue.onWin : selectedBot.dialogue.onLose
+              )
+            );
+          }
+        } else if (isDraw) {
           setIsGameOver(true);
-          setGameResult("1/2-1/2 (Draw)");
+          const drawReason = isThreefoldRepetition
+            ? "Draw by Repetition"
+            : newGame.isStalemate()
+            ? "Stalemate"
+            : newGame.isInsufficientMaterial()
+            ? "Insufficient Material"
+            : newGame.isDrawByFiftyMoves()
+            ? "50-Move Rule"
+            : "Draw";
+          setGameResult(`1/2-1/2 (${drawReason})`);
+          if (selectedBot) {
+            setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onDraw));
+          }
+        } else if (selectedBot) {
+          const isBotMove = color === botColor;
+          if (isBotMove) {
+            if (isCheck) {
+              setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onCheck));
+            } else if (isCapture) {
+              setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onCapture));
+            }
+          } else if (Math.random() < 0.35) {
+            setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onPlayerMove));
+          }
         }
 
         // 5. Evaluate with Stockfish IN THE BACKGROUND ONLY when Analysis is ON!
-        // Defer evaluation by 240ms so the 60fps/120fps piece move animation completes with 100% butter smoothness!
         if (isAnalysisOn) {
+          const activeGen = gameGenerationRef.current;
           setTimeout(() => {
+            if (gameGenerationRef.current !== activeGen) return;
             stockfish.evaluatePosition(newFen, 8).then((nextEval) => {
+              if (gameGenerationRef.current !== activeGen) return;
               setCurrentEval(nextEval);
 
               const accurateClassification = classifyMove(
@@ -230,6 +367,14 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
                 isCheck,
                 isCheckmate
               );
+
+              if (selectedBot && accurateClassification.classification === "blunder") {
+                if (color === playerColor) {
+                  setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onBlunderByPlayer));
+                } else {
+                  setBotDialogue(pickRandomDialogue(selectedBot.dialogue.onBotBlunder));
+                }
+              }
 
               setMoveHistory((prevHistory) => {
                 if (!prevHistory[moveIdx]) return prevHistory;
@@ -245,11 +390,13 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
                 const whiteMoves = updated.filter((m) => m.color === "w");
                 const blackMoves = updated.filter((m) => m.color === "b");
                 if (whiteMoves.length > 0) {
-                  const avgW = whiteMoves.reduce((acc, m) => acc + m.accuracy, 0) / whiteMoves.length;
+                  const avgW =
+                    whiteMoves.reduce((acc, m) => acc + m.accuracy, 0) / whiteMoves.length;
                   setWhiteAccuracy(Math.round(avgW * 10) / 10);
                 }
                 if (blackMoves.length > 0) {
-                  const avgB = blackMoves.reduce((acc, m) => acc + m.accuracy, 0) / blackMoves.length;
+                  const avgB =
+                    blackMoves.reduce((acc, m) => acc + m.accuracy, 0) / blackMoves.length;
                   setBlackAccuracy(Math.round(avgB * 10) / 10);
                 }
 
@@ -265,11 +412,61 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         return false;
       }
     },
-    [currentEval, currentMoveIndex, game, isGameOver, isAnalysisOn, moveHistory]
+    [
+      currentEval,
+      currentMoveIndex,
+      isGameOver,
+      isAnalysisOn,
+      moveHistory,
+      rebuildGameFromHistory,
+      selectedBot,
+      botColor,
+      playerColor,
+    ]
+  );
+
+  // Trigger Bot Move automatically when it's the bot's turn
+  useEffect(() => {
+    if (!selectedBot || isGameOver || !isViewingCurrent) return;
+    if (game.turn() !== botColor) return;
+
+    let cancelled = false;
+    const activeGen = gameGenerationRef.current;
+    const fen = game.fen();
+    const sanHistory = moveHistory.map((m) => m.san);
+    const [minDelay, maxDelay] = selectedBot.engine.thinkTimeMs;
+    const delayMs = minDelay + Math.random() * (maxDelay - minDelay);
+
+    const delayPromise = new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
+
+    Promise.all([chessBotEngine.chooseMove(fen, selectedBot, sanHistory), delayPromise])
+      .then(([botMove]) => {
+        if (cancelled || gameGenerationRef.current !== activeGen) return;
+        if (botMove) {
+          makeMove(botMove);
+        }
+      })
+      .catch(() => {
+        // Ignore cancelled bot errors
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBot, isGameOver, isViewingCurrent, game, botColor, moveHistory, makeMove]);
+
+  // Check if moving from -> to is a legal pawn promotion
+  const isPromotionMove = useCallback(
+    (from: Square, to: Square): boolean => {
+      const moves = game.moves({ square: from, verbose: true });
+      return moves.some((m) => m.to === to && Boolean(m.promotion));
+    },
+    [game]
   );
 
   // Handle Drag & Drop move
-  // KEY REQUIREMENT: If dropped on an illegal square, piece snaps back BUT legal moves REMAIN shown on board!
   const onPieceDrop = useCallback(
     ({
       sourceSquare,
@@ -279,41 +476,61 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       sourceSquare: string;
       targetSquare: string | null;
     }): boolean => {
+      if (pendingPromotion) return false;
+      if (selectedBot && (game.turn() !== playerColor || isBotThinking)) {
+        return false;
+      }
+
       if (!targetSquare) {
-        // Dragged off board or cancelled: keep piece selected & legal moves visible
         showLegalMovesForSquare(sourceSquare as Square);
         return false;
       }
 
+      const fromSq = sourceSquare as Square;
+      const toSq = targetSquare as Square;
+
+      if (isPromotionMove(fromSq, toSq)) {
+        setPendingPromotion({ from: fromSq, to: toSq, color: game.turn() });
+        setSelectedSquare(null);
+        setLegalMoves([]);
+        return false;
+      }
+
       const moveSuccessful = makeMove({
-        from: sourceSquare as Square,
-        to: targetSquare as Square,
-        promotion: "q", // Auto-queen on pawn promotion
+        from: fromSq,
+        to: toSq,
       });
 
       if (!moveSuccessful) {
-        // ILLEGAL SQUARE DROPPED:
-        // Keep piece selected and keep legal moves visible so player sees where it CAN move!
-        showLegalMovesForSquare(sourceSquare as Square);
+        showLegalMovesForSquare(fromSq);
         return false;
       }
 
       return true;
     },
-    [makeMove, showLegalMovesForSquare]
+    [
+      pendingPromotion,
+      makeMove,
+      showLegalMovesForSquare,
+      isPromotionMove,
+      selectedBot,
+      game,
+      playerColor,
+      isBotThinking,
+    ]
   );
 
   // Handle Square Clicks (Instant Click-to-move)
   const onSquareClick = useCallback(
     ({ square }: { square: string }) => {
-      if (isGameOver) return;
+      if (isGameOver || pendingPromotion) return;
+      if (selectedBot && (game.turn() !== playerColor || isBotThinking)) return;
+
       const sq = square as Square;
       const piece = game.get(sq);
 
-      // If a piece is already selected:
       if (selectedSquare) {
         if (selectedSquare === sq) {
-          // Clicking same square deselects it
           setSelectedSquare(null);
           setLegalMoves([]);
           return;
@@ -323,37 +540,77 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         const isValid = moves.some((m) => m.to === sq);
 
         if (isValid) {
+          if (isPromotionMove(selectedSquare, sq)) {
+            setPendingPromotion({ from: selectedSquare, to: sq, color: game.turn() });
+            setSelectedSquare(null);
+            setLegalMoves([]);
+            return;
+          }
+
           makeMove({
             from: selectedSquare,
             to: sq,
-            promotion: "q",
           });
           return;
         } else {
-          // If clicking another friendly piece, switch selection to that piece
           if (piece && piece.color === game.turn()) {
             showLegalMovesForSquare(sq);
             return;
           }
-          // Clicked an illegal empty square: KEEP the piece selected and KEEP legal moves visible!
           return;
         }
       }
 
-      // Otherwise, select the piece and show legal move dots immediately
       if (piece && piece.color === game.turn()) {
         showLegalMovesForSquare(sq);
       }
     },
-    [game, isGameOver, makeMove, selectedSquare, showLegalMovesForSquare]
+    [
+      game,
+      isGameOver,
+      pendingPromotion,
+      makeMove,
+      isPromotionMove,
+      selectedSquare,
+      showLegalMovesForSquare,
+      selectedBot,
+      playerColor,
+      isBotThinking,
+    ]
   );
+
+  // Complete a pending pawn promotion choice
+  const handleSelectPromotion = useCallback(
+    (piece: "q" | "n" | "r" | "b") => {
+      if (!pendingPromotion) return;
+      const { from, to } = pendingPromotion;
+      setPendingPromotion(null);
+      makeMove({ from, to, promotion: piece });
+    },
+    [pendingPromotion, makeMove]
+  );
+
+  // Keyboard shortcuts while promotion picker is open (Q/N/R/B or Escape to cancel)
+  useEffect(() => {
+    if (!pendingPromotion) return;
+    const handleKey = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (k === "escape") {
+        setPendingPromotion(null);
+      } else if (k === "q" || k === "n" || k === "r" || k === "b") {
+        handleSelectPromotion(k);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [pendingPromotion, handleSelectPromotion]);
 
   // History Navigation
   const navigateToMove = (idx: number) => {
+    setPendingPromotion(null);
     setCurrentMoveIndex(idx);
-    const targetFen = idx === -1 ? historyFens[0] : historyFens[idx + 1];
-    if (targetFen) {
-      setGame(new Chess(targetFen));
+    if (idx === -1 || (idx >= 0 && moveHistory[idx])) {
+      setGame(rebuildGameFromHistory(moveHistory, idx));
       if (idx >= 0 && moveHistory[idx]) {
         setLastMove({
           from: moveHistory[idx].from as Square,
@@ -406,16 +663,13 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
           return prev;
         }
         const next = prev + 1;
-        const targetFen = historyFens[next + 1];
-        if (targetFen) {
-          setGame(new Chess(targetFen));
-          if (moveHistory[next]) {
-            setLastMove({
-              from: moveHistory[next].from as Square,
-              to: moveHistory[next].to as Square,
-            });
-            setCurrentEval(moveHistory[next].evalAfter);
-          }
+        if (moveHistory[next]) {
+          setGame(rebuildGameFromHistory(moveHistory, next));
+          setLastMove({
+            from: moveHistory[next].from as Square,
+            to: moveHistory[next].to as Square,
+          });
+          setCurrentEval(moveHistory[next].evalAfter);
         }
         return next;
       });
@@ -424,7 +678,7 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
     return () => {
       if (replayTimerRef.current) clearInterval(replayTimerRef.current);
     };
-  }, [isPlayingReplay, historyFens, moveHistory]);
+  }, [isPlayingReplay, moveHistory, rebuildGameFromHistory]);
 
   // Flip board orientation
   const handleFlipBoard = () => {
@@ -451,11 +705,10 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
     }
   };
 
-  // Custom square styles (highlights & legal move dots) - MEMOIZED to eliminate re-render jank
+  // Custom square styles (highlights & legal move dots)
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
 
-    // Selected square highlight
     if (selectedSquare) {
       styles[selectedSquare] = {
         backgroundColor: "rgba(6, 182, 212, 0.45)",
@@ -463,7 +716,6 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       };
     }
 
-    // Last move from/to squares highlight
     if (lastMove) {
       styles[lastMove.from] = {
         backgroundColor: "rgba(6, 182, 212, 0.22)",
@@ -473,7 +725,6 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       };
     }
 
-    // Legal move hint indicators: crisp dots on empty squares, target rings on enemy pieces
     legalMoves.forEach((sq) => {
       const hasPiece = game.get(sq);
       styles[sq] = {
@@ -487,8 +738,7 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
     return styles;
   }, [selectedSquare, lastMove, legalMoves, game]);
 
-  // Dynamic Board Sizing: measures container and sets exact 1:1 square dimensions
-  // guaranteeing Rank 1 and Rank 8 are 100% visible on ANY monitor or laptop without vertical scroll
+  // Dynamic Board Sizing
   const viewContainerRef = useRef<HTMLDivElement>(null);
   const [boardSize, setBoardSize] = useState<number>(() => {
     if (typeof window !== "undefined") {
@@ -504,35 +754,28 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       if (!viewContainerRef.current) return;
       const rect = viewContainerRef.current.getBoundingClientRect();
       const availableHeight = rect.height || window.innerHeight;
-      const availableWidth = rect.width || (window.innerWidth - 240);
+      const availableWidth = rect.width || window.innerWidth - 240;
 
-      // Non-board vertical elements:
-      // Black PlayerCard (~30px) + White PlayerCard (~30px) + BoardControls (~38px)
-      // Spacing gaps and board wrapper padding (~28px)
-      // Safe buffer margin (~16px)
-      const verticalOverhead = 142;
+      const verticalOverhead = 148;
       const maxH = Math.max(260, availableHeight - verticalOverhead);
 
-      // Horizontal elements:
       let horizontalOverhead = 24;
       if (isAnalysisOn && !isFocusMode) {
-        // Right Analysis Panel: ~310px + gap 16px = 326px
-        // EvalBar on left: ~28px + gap 10px = 38px
-        // Outer wrapper padding & safe buffer: ~28px
         horizontalOverhead = 392;
       } else if (isAnalysisOn && isFocusMode) {
-        horizontalOverhead = 66; // EvalBar + padding
+        horizontalOverhead = 66;
       }
 
       const maxW = Math.max(260, availableWidth - horizontalOverhead);
-
-      // Board must be square: strictly min of maxH and maxW
       let size = Math.floor(Math.min(maxH, maxW));
 
-      // Maximum ceilings for optimal proportion
       const maxCap = isAnalysisOn
-        ? isFocusMode ? 620 : 520
-        : isFocusMode ? 740 : 640;
+        ? isFocusMode
+          ? 620
+          : 520
+        : isFocusMode
+        ? 740
+        : 640;
 
       size = Math.min(size, maxCap);
       setBoardSize((prev) => (prev !== size ? size : prev));
@@ -557,7 +800,7 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
 
   const totalBoardColumnWidth = isAnalysisOn ? boardSize + 56 : boardSize + 16;
 
-  // Memoized options passed to react-chessboard to prevent unnecessary context & drag re-instantiations
+  // Memoized options passed to react-chessboard
   const chessboardOptions = useMemo(
     () => ({
       position: game.fen(),
@@ -572,10 +815,11 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       },
       onPieceDragCancel: () => {},
       canDragPiece: ({ piece }: { piece: { pieceType: string } }) => {
-        if (isGameOver) return false;
+        if (isGameOver || !isViewingCurrent || Boolean(pendingPromotion)) return false;
+        if (selectedBot && (game.turn() !== playerColor || isBotThinking)) return false;
         return piece.pieceType.startsWith(game.turn());
       },
-      pieces: ChessPieces,
+      pieces: defaultPieces,
       boardStyle: {
         width: "100%",
         height: "100%",
@@ -592,11 +836,10 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       draggingPieceGhostStyle: {
         opacity: 0.35,
       },
-      // Exact slate-blue theme matching reference image
       lightSquareStyle: { backgroundColor: "#cdd9e5" },
       darkSquareStyle: { backgroundColor: "#476685" },
       squareStyles: customSquareStyles,
-      animationDurationInMs: 220, // Buttery smooth 220ms Chess.com gliding animation
+      animationDurationInMs: 220,
       showNotation: true,
       darkSquareNotationStyle: { color: "#cdd9e5", fontWeight: 700, fontSize: "10px" },
       lightSquareNotationStyle: { color: "#476685", fontWeight: 700, fontSize: "10px" },
@@ -608,9 +851,64 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
       onSquareClick,
       showLegalMovesForSquare,
       isGameOver,
+      isViewingCurrent,
+      pendingPromotion,
+      selectedBot,
+      playerColor,
+      isBotThinking,
       customSquareStyles,
     ]
   );
+
+  // Determine top & bottom player cards dynamically based on board orientation
+  const topColor: "w" | "b" = boardOrientation === "white" ? "b" : "w";
+  const bottomColor: "w" | "b" = boardOrientation === "white" ? "w" : "b";
+
+  const renderPlayerCardProps = (color: "w" | "b") => {
+    const side: "White" | "Black" = color === "w" ? "White" : "Black";
+    const capturedPieces = color === "w" ? capturedByWhite : capturedByBlack;
+    const isActiveTurn = currentTurn === color && isViewingCurrent && !isGameOver;
+
+    if (!selectedBot) {
+      return {
+        side,
+        capturedPieces,
+        isActiveTurn,
+      };
+    }
+
+    const isBotSide = color === botColor;
+    if (isBotSide) {
+      return {
+        side,
+        bot: selectedBot,
+        rating: selectedBot.rating,
+        isThinking: isBotThinking && isActiveTurn,
+        dialogue: botDialogue,
+        capturedPieces,
+        isActiveTurn,
+      };
+    }
+
+    return {
+      side,
+      playerName,
+      badgeLabel: "You",
+      capturedPieces,
+      isActiveTurn,
+    };
+  };
+
+  const whiteDisplayName = selectedBot
+    ? playerColor === "w"
+      ? playerName
+      : selectedBot.name
+    : "White";
+  const blackDisplayName = selectedBot
+    ? playerColor === "b"
+      ? playerName
+      : selectedBot.name
+    : "Black";
 
   return (
     <div
@@ -619,29 +917,20 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         isAnalysisOn && !isFocusMode ? "gap-4 xl:gap-6" : "gap-0"
       }`}
     >
-      {/* ========================================================= */}
-      {/* MAIN CHESSBOARD COLUMN: Black Card, Board (+ optional EvalBar with left space), White Card, Controls */}
-      {/* ========================================================= */}
+      {/* MAIN CHESSBOARD COLUMN */}
       <div
         className="flex flex-col justify-center items-center space-y-1 shrink-0 transition-all duration-200"
         style={{ width: totalBoardColumnWidth }}
       >
-        {/* 1. Black Player Card (Clean "Black") */}
+        {/* 1. Top Player Card */}
         <div className="w-full">
-          <PlayerCard
-            side="Black"
-            capturedPieces={capturedByBlack}
-            isActiveTurn={currentTurn === "b" && isViewingCurrent && !isGameOver}
-          />
+          <PlayerCard {...renderPlayerCardProps(topColor)} />
         </div>
 
         {/* 2. Chessboard Container with optional Vertical Evaluation Bar */}
         <div className="w-full rounded-2xl bg-[#0c101a]/95 border border-zinc-800/80 p-2 shadow-2xl flex items-center justify-center gap-2 sm:gap-2.5 relative">
-          {/* Subtle Ambient Backlight Glow */}
           <div className="pointer-events-none absolute -left-10 top-1/2 -translate-y-1/2 w-48 h-48 bg-cyan-500/10 blur-[80px]" />
 
-          {/* Vertical Stockfish Evaluation Bar (ONLY shown when Analysis toggle is ON) */}
-          {/* Has dedicated left margin / space (pl-1 sm:pl-1.5) so it doesn't touch the outer edge */}
           {isAnalysisOn && (
             <div
               style={{ height: boardSize }}
@@ -663,40 +952,125 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
           >
             <Chessboard options={chessboardOptions} />
 
+            {/* Pawn Promotion Selector Overlay */}
+            {pendingPromotion && (() => {
+              const fileIdx = "abcdefgh".indexOf(pendingPromotion.to[0]);
+              const colIdx = boardOrientation === "white" ? fileIdx : 7 - fileIdx;
+              const isAtTop =
+                (boardOrientation === "white" && pendingPromotion.color === "w") ||
+                (boardOrientation === "black" && pendingPromotion.color === "b");
+              const options: { key: "q" | "n" | "r" | "b"; label: string; pieceKey: keyof typeof defaultPieces }[] = [
+                { key: "q", label: "Queen", pieceKey: `${pendingPromotion.color}Q` as keyof typeof defaultPieces },
+                { key: "n", label: "Knight", pieceKey: `${pendingPromotion.color}N` as keyof typeof defaultPieces },
+                { key: "r", label: "Rook", pieceKey: `${pendingPromotion.color}R` as keyof typeof defaultPieces },
+                { key: "b", label: "Bishop", pieceKey: `${pendingPromotion.color}B` as keyof typeof defaultPieces },
+              ];
+              const orderedOptions = isAtTop ? options : [...options].reverse();
+
+              return (
+                <div
+                  className="absolute inset-0 bg-black/50 backdrop-blur-[1px] z-30 animate-in fade-in duration-150"
+                  onClick={() => setPendingPromotion(null)}
+                >
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      left: `${colIdx * 12.5}%`,
+                      width: "12.5%",
+                      top: isAtTop ? 0 : undefined,
+                      bottom: !isAtTop ? 0 : undefined,
+                    }}
+                    className="absolute flex flex-col bg-[#0c101a]/95 border border-cyan-400/70 rounded-xl shadow-2xl shadow-cyan-500/20 overflow-hidden"
+                  >
+                    {!isAtTop && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingPromotion(null)}
+                        title="Cancel promotion (Esc)"
+                        aria-label="Cancel promotion"
+                        className="w-full py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center border-b border-zinc-800 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+
+                    {orderedOptions.map(({ key, label, pieceKey }) => {
+                      const PieceSvg = defaultPieces[pieceKey];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectPromotion(key)}
+                          title={`Promote to ${label} (${key.toUpperCase()})`}
+                          aria-label={`Promote to ${label}`}
+                          className="aspect-square w-full p-1.5 flex items-center justify-center hover:bg-cyan-500/25 active:scale-95 transition cursor-pointer relative group"
+                        >
+                          <PieceSvg />
+                        </button>
+                      );
+                    })}
+
+                    {isAtTop && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingPromotion(null)}
+                        title="Cancel promotion (Esc)"
+                        aria-label="Cancel promotion"
+                        className="w-full py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center border-t border-zinc-800 cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Game Over Overlay */}
             {isGameOver && (
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-20 animate-in fade-in duration-300">
-                <div className="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 text-xl mb-2 shadow-lg shadow-cyan-500/20">
-                  ♚
+                <div className="w-12 h-12 rounded-xl bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 text-xl font-bold mb-2 shadow-lg shadow-cyan-500/20">
+                  {gameResult.startsWith("1/2-1/2") ? "½" : "♚"}
                 </div>
                 <h3 className="text-lg font-extrabold text-white tracking-wide">
-                  Game Over
+                  {gameResult.startsWith("1/2-1/2") ? "Draw" : "Game Over"}
                 </h3>
                 <p className="text-cyan-300 text-xs font-semibold mt-0.5">
                   Result: {gameResult}
                 </p>
-                <button
-                  type="button"
-                  onClick={handlePlayAgain}
-                  className="mt-3 px-4 py-2 rounded-xl bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 text-xs font-bold shadow-lg shadow-cyan-500/25 active:scale-95 transition cursor-pointer"
-                >
-                  Play Again
-                </button>
+                {selectedBot && botDialogue && (
+                  <p className="mt-2 max-w-xs text-[11px] text-zinc-300 italic bg-zinc-900/80 border border-zinc-700/70 rounded-xl px-3 py-1.5">
+                    {selectedBot.name}: &ldquo;{botDialogue}&rdquo;
+                  </p>
+                )}
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePlayAgain}
+                    className="px-4 py-2 rounded-xl bg-[#00bcd4] hover:bg-[#22d3ee] text-zinc-950 text-xs font-bold shadow-lg shadow-cyan-500/25 active:scale-95 transition cursor-pointer"
+                  >
+                    Play Again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsBotModalOpen(true)}
+                    className="px-3.5 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-bold flex items-center gap-1.5 active:scale-95 transition cursor-pointer"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Switch Bot</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* 3. White Player Card (Clean "White") */}
+        {/* 3. Bottom Player Card */}
         <div className="w-full">
-          <PlayerCard
-            side="White"
-            capturedPieces={capturedByWhite}
-            isActiveTurn={currentTurn === "w" && isViewingCurrent && !isGameOver}
-          />
+          <PlayerCard {...renderPlayerCardProps(bottomColor)} />
         </div>
 
-        {/* 4. Controls Toolbar (|<, <, Play, >, >|, Analysis Toggle, Focus Mode, Resign, Flip, PGN, Share) */}
+        {/* 4. Controls Toolbar */}
         <div className="w-full">
           <BoardControls
             canGoBack={currentMoveIndex > -1}
@@ -705,6 +1079,9 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
             isGameOver={isGameOver}
             isFocusMode={isFocusMode}
             isAnalysisOn={isAnalysisOn}
+            repetitionCount={currentRepetitionCount}
+            activeBotName={selectedBot ? selectedBot.name : null}
+            onOpenBotSelector={() => setIsBotModalOpen(true)}
             onToggleAnalysis={() => setIsAnalysisOn((prev) => !prev)}
             onToggleFocusMode={toggleFocusMode}
             onFirstMove={handleFirstMove}
@@ -720,21 +1097,16 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
         </div>
       </div>
 
-      {/* ========================================================= */}
       {/* RIGHT COLUMN: Accuracy Card + Notation Ledger + Move Classification */}
-      {/* (ONLY displayed when Analysis toggle is ON and Focus Mode is OFF) */}
-      {/* ========================================================= */}
       {isAnalysisOn && !isFocusMode && (
         <div className="flex flex-col space-y-2 w-full lg:w-[300px] xl:w-[330px] shrink-0 animate-in fade-in duration-200">
-          {/* 1. Accuracy Card on Right Side */}
           <PlayerAccuracyCard
             whiteAccuracy={whiteAccuracy}
             blackAccuracy={blackAccuracy}
-            whiteName="White"
-            blackName="Black"
+            whiteName={whiteDisplayName}
+            blackName={blackDisplayName}
           />
 
-          {/* 2. Notation Ledger */}
           <NotationLedger
             moves={moveHistory}
             currentMoveIndex={currentMoveIndex}
@@ -742,14 +1114,23 @@ export const ChessGameView: React.FC<ChessGameViewProps> = ({
             result={gameResult === "In Progress" ? "1-0" : gameResult}
           />
 
-          {/* 3. Move Classification Breakdown */}
           <MoveClassificationCard
             moves={moveHistory}
-            whiteName="White"
-            blackName="Black"
+            whiteName={whiteDisplayName}
+            blackName={blackDisplayName}
           />
         </div>
       )}
+
+      {/* Bot Selection Modal */}
+      <BotSelectorModal
+        isOpen={isBotModalOpen}
+        currentBot={selectedBot}
+        currentPlayerColor={playerColor}
+        onSelectBot={(bot, color) => resetBoardForMatch(bot, color)}
+        onSelectLocalPassAndPlay={() => resetBoardForMatch(null, "w")}
+        onClose={() => setIsBotModalOpen(false)}
+      />
     </div>
   );
 };

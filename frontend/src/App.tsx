@@ -7,6 +7,7 @@ import ResetPassword from "./Pages/ResetPassword";
 import CompleteProfile from "./Pages/CompleteProfile";
 import Dashboard from "./Pages/Dashboard";
 import PlayPage from "./Pages/Play";
+import BotsPage from "./Pages/Bots";
 import Tournaments from "./Pages/Tournaments";
 
 const GOOGLE_CLIENT_ID =
@@ -34,6 +35,7 @@ function App() {
           <Route path="/notifications" element={<Dashboard />} />
           <Route path="/settings" element={<Dashboard />} />
           <Route path="/play" element={<PlayPage />} />
+          <Route path="/bots" element={<BotsPage />} />
           <Route path="*" element={<Navigate to="/signup" replace />} />
         </Routes>
       </BrowserRouter>
