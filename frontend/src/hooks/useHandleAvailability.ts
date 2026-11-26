@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import type { HandleStatus } from "../components/PlayerHandleInput";
 import { signupSchema } from "../lib/schema";
 
@@ -43,11 +44,9 @@ export const useHandleAvailability = (initialValue: string = "") => {
 
     const timer = setTimeout(async () => {
       try {
-        const queryUrl = `/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`;
-        const fallbackUrl = `http://localhost:5000/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`;
-
-        const response = await fetch(queryUrl, { signal: controller.signal }).catch(() =>
-          fetch(fallbackUrl, { signal: controller.signal })
+        const response = await apiFetch(
+          `/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`,
+          { signal: controller.signal }
         );
         const data = await response.json();
 

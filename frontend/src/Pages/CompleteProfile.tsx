@@ -5,6 +5,7 @@ import PlayerHandleInput from "../components/PlayerHandleInput";
 import AvatarSelectionPanel from "../components/AvatarSelectionPanel";
 import { type ChessPieceId, getChessPiece } from "../components/chessPieces";
 import useHandleAvailability from "../hooks/useHandleAvailability";
+import { apiFetch } from "../lib/api";
 
 interface GoogleProfileState {
   googleUser?: {
@@ -97,7 +98,7 @@ const CompleteProfile = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/google", {
+      const response = await apiFetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -106,18 +107,7 @@ const CompleteProfile = () => {
           handle: trimmedHandle,
           avatarPiece,
         }),
-      }).catch(() =>
-        fetch("http://localhost:5000/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            credential: googleUser.credential,
-            displayName: displayName.trim(),
-            handle: trimmedHandle,
-            avatarPiece,
-          }),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 

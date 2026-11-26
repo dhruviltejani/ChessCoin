@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
+import { apiFetch } from "../lib/api";
 import {
   AlertCircle,
   Eye,
@@ -113,11 +114,9 @@ const Signup = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const queryUrl = `/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`;
-        const fallbackUrl = `http://localhost:5000/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`;
-
-        const response = await fetch(queryUrl, { signal: controller.signal }).catch(() =>
-          fetch(fallbackUrl, { signal: controller.signal })
+        const response = await apiFetch(
+          `/api/auth/check-handle?handle=${encodeURIComponent(trimmed)}`,
+          { signal: controller.signal }
         );
         const data = await response.json();
 
@@ -164,11 +163,9 @@ const Signup = () => {
 
     const timer = setTimeout(async () => {
       try {
-        const queryUrl = `/api/auth/check-email?email=${encodeURIComponent(trimmed)}`;
-        const fallbackUrl = `http://localhost:5000/api/auth/check-email?email=${encodeURIComponent(trimmed)}`;
-
-        const response = await fetch(queryUrl, { signal: controller.signal }).catch(() =>
-          fetch(fallbackUrl, { signal: controller.signal })
+        const response = await apiFetch(
+          `/api/auth/check-email?email=${encodeURIComponent(trimmed)}`,
+          { signal: controller.signal }
         );
         if (!response) return;
         const data = await response.json();
@@ -335,9 +332,9 @@ const Signup = () => {
     try {
       // Live validation guard: verify handle is not taken in the users table
       if (handleStatus !== "available") {
-        const checkQueryUrl = `/api/auth/check-handle?handle=${encodeURIComponent(formData.handle.trim())}`;
-        const checkFallbackUrl = `http://localhost:5000/api/auth/check-handle?handle=${encodeURIComponent(formData.handle.trim())}`;
-        const checkRes = await fetch(checkQueryUrl).catch(() => fetch(checkFallbackUrl));
+        const checkRes = await apiFetch(
+          `/api/auth/check-handle?handle=${encodeURIComponent(formData.handle.trim())}`
+        );
         const checkData = await checkRes.json();
         if (checkData.success && !checkData.available) {
           setHandleStatus("unavailable");
@@ -350,23 +347,13 @@ const Signup = () => {
         }
       }
 
-      const registerUrl = "/api/auth/register";
-      const registerFallbackUrl = "http://localhost:5000/api/auth/register";
-      const response = await fetch(registerUrl, {
+      const response = await apiFetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
-      }).catch(() =>
-        fetch(registerFallbackUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        })
-      );
+      });
 
       const data = await response.json();
 
@@ -433,23 +420,14 @@ const Signup = () => {
 
     try {
       // Check if user already exists
-      const response = await fetch("/api/auth/google", {
+      const response = await apiFetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           credential: credentialOrPayload,
           checkOnly: true,
         }),
-      }).catch(() =>
-        fetch("http://localhost:5000/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            credential: credentialOrPayload,
-            checkOnly: true,
-          }),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 

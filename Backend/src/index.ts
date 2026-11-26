@@ -15,6 +15,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const allowedOrigins = (process.env.FRONTEND_URL || "")
+  .split(",")
+  .map((url) => url.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
 // Middleware
 app.use(
   cors({
@@ -22,9 +27,11 @@ app.use(
       // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
 
+      const normalizedOrigin = origin.replace(/\/+$/, "");
+
       // Allow any localhost or 127.0.0.1 origin (e.g., port 5173, 5174, etc.)
-      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-      const isConfigured = Boolean(process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL);
+      const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(normalizedOrigin);
+      const isConfigured = allowedOrigins.includes(normalizedOrigin);
 
       if (isLocalhost || isConfigured) {
         return callback(null, true);

@@ -564,8 +564,11 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       [user.id, tokenHash]
     );
 
-    // Build the frontend password reset URL
-    const frontendBase = process.env.FRONTEND_URL || "http://localhost:5173";
+    // Build the frontend password reset URL (strip trailing slash and take primary origin if comma-separated)
+    const frontendBase = (process.env.FRONTEND_URL || "http://localhost:5173")
+      .split(",")[0]
+      .trim()
+      .replace(/\/+$/, "");
     const resetUrl = `${frontendBase}/reset-password?token=${rawToken}`;
 
     // Send email using Nodemailer

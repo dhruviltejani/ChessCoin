@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Button from "../components/Button";
 import { forgotPasswordSchema, type ForgotPasswordFormErrors } from "../lib/schema";
+import { apiFetch } from "../lib/api";
 
 
 const ResetLockIcon = ({ className = "h-6 w-6" }: { className?: string }) => (
@@ -86,20 +87,11 @@ const ForgotPassword = () => {
     setIsSubmitting(true);
 
     try {
-      const endpoint = "/api/auth/forgot-password";
-      const fallbackEndpoint = "http://localhost:5000/api/auth/forgot-password";
-
-      const response = await fetch(endpoint, {
+      const response = await apiFetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
-      }).catch(() =>
-        fetch(fallbackEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim() }),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 

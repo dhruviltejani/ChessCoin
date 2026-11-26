@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Button from "../components/Button";
 import { resetPasswordSchema, type ResetPasswordFormErrors } from "../lib/schema";
+import { apiFetch } from "../lib/api";
 
 
 const ResetPassword = () => {
@@ -49,8 +50,8 @@ const ResetPassword = () => {
 
     const checkToken = async () => {
       try {
-        const res = await fetch(`/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`).catch(() =>
-          fetch(`http://localhost:5000/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`)
+        const res = await apiFetch(
+          `/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`
         );
         const data = await res.json().catch(() => null);
 
@@ -109,20 +110,11 @@ const ResetPassword = () => {
     setIsSubmitting(true);
 
     try {
-      const endpoint = "/api/auth/reset-password";
-      const fallbackEndpoint = "http://localhost:5000/api/auth/reset-password";
-
-      const response = await fetch(endpoint, {
+      const response = await apiFetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, password }),
-      }).catch(() =>
-        fetch(fallbackEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token, password }),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 

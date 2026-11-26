@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useGoogleLogin } from "@react-oauth/google";
+import { apiFetch } from "../lib/api";
 import {
   AlertCircle,
   AtSign,
@@ -85,20 +86,11 @@ const Signin = () => {
 
 
     try {
-      const loginUrl = "/api/auth/login";
-      const fallbackUrl = "http://localhost:5000/api/auth/login";
-
-      const response = await fetch(loginUrl, {
+      const response = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      }).catch(() =>
-        fetch(fallbackUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 
@@ -134,23 +126,14 @@ const Signin = () => {
     setApiError(null);
 
     try {
-      const response = await fetch("/api/auth/google", {
+      const response = await apiFetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           credential: credentialOrPayload,
           checkOnly: true,
         }),
-      }).catch(() =>
-        fetch("http://localhost:5000/api/auth/google", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            credential: credentialOrPayload,
-            checkOnly: true,
-          }),
-        })
-      );
+      });
 
       const data = await response.json().catch(() => null);
 

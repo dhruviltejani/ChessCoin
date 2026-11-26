@@ -5,20 +5,36 @@ dotenv.config();
 
 const { Pool } = pg;
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  host: process.env.DB_HOST || "localhost",
-  port: Number(process.env.DB_PORT) || 5432,
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  database: process.env.DB_NAME || "chesscoin_dev",
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 5000,
-});
+const connectionString = process.env.DATABASE_URL?.trim();
+const isLocalConnection =
+  !connectionString || /localhost|127\.0\.0\.1/.test(connectionString);
+
+export const pool = new Pool(
+  connectionString
+    ? {
+        connectionString,
+        ssl: isLocalConnection ? undefined : { rejectUnauthorized: false },
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      }
+    : {
+        host: process.env.DB_HOST || "localhost",
+        port: Number(process.env.DB_PORT) || 5432,
+        user: process.env.DB_USER || "postgres",
+        password: process.env.DB_PASSWORD || "postgres",
+        database: process.env.DB_NAME || "chesscoin_dev",
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+      }
+);
 
 pool.on("connect", () => {
-  console.log("Connected to PostgreSQL database:", process.env.DB_NAME || "chesscoin_dev");
+  const targetDb = connectionString
+    ? "DATABASE_URL"
+    : process.env.DB_NAME || "chesscoin_dev";
+  console.log("Connected to PostgreSQL database:", targetDb);
 });
 
 pool.on("error", (err) => {
