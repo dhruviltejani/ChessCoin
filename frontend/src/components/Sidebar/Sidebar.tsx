@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   BarChart2,
   Bell,
+  Bot,
   LayoutGrid,
   MessageSquare,
   Play,
@@ -37,6 +38,7 @@ export interface SidebarProps {
 const mainNavItems: NavItem[] = [
   { id: "home", label: "Home", icon: LayoutGrid },
   { id: "play", label: "Play", icon: Play },
+  { id: "bots", label: "Play Bots", icon: Bot },
   { id: "tournaments", label: "Tournaments", icon: Trophy },
   { id: "leagues", label: "Leagues", icon: Shield },
   { id: "leaderboard", label: "Leaderboard", icon: BarChart2 },
@@ -66,6 +68,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const currentPath = location.pathname;
   const pathBasedItem = currentPath.startsWith("/tournaments")
     ? "tournaments"
+    : currentPath.startsWith("/bots")
+    ? "bots"
     : currentPath.startsWith("/play")
     ? "play"
     : currentPath.startsWith("/dashboard") || currentPath.startsWith("/home")
