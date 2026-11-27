@@ -1,4 +1,4 @@
-import pg from "../../node_modules/@types/pg/index.js";
+import pg from "pg";
 import dotenv from "dotenv";
 
 dotenv.config();
