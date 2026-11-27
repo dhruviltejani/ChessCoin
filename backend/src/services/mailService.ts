@@ -63,19 +63,13 @@ const getTransporter = async (): Promise<Transporter> => {
   }
 };
 
-export const sendPasswordResetEmail = async (
-  to: string,
+const buildPasswordResetEmailContent = (
   displayName: string,
   resetUrl: string
-): Promise<SendMailResult> => {
-  try {
-    const transporter = await getTransporter();
-    const fromAddress =
-      process.env.EMAIL_FROM || '"ChessCoin Security" <no-reply@chesscoin.org>';
+) => {
+  const subject = "Reset Your ChessCoin Password";
 
-    const subject = "Reset Your ChessCoin Password";
-
-    const textContent = `
+  const textContent = `
 Hello ${displayName || "Player"},
 
 We received a request to reset your password for ChessCoin.
@@ -86,9 +80,9 @@ ${resetUrl}
 This link is valid for 1 hour. If you did not request a password reset, please ignore this email.
 
 ChessCoin Security Protocol
-    `.trim();
+  `.trim();
 
-    const htmlContent = `
+  const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -243,7 +237,89 @@ ChessCoin Security Protocol
   </div>
 </body>
 </html>
-    `.trim();
+  `.trim();
+
+  return { subject, textContent, htmlContent };
+};
+
+const sendViaResend = async (
+  apiKey: string,
+  from: string,
+  to: string,
+  subject: string,
+  text: string,
+  html: string
+): Promise<SendMailResult> => {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  const data = (await response.json().catch(() => null)) as
+    | { id?: string; message?: string; name?: string }
+    | null;
+
+  if (!response.ok) {
+    const errMsg = data?.message || `Resend API error (${response.status})`;
+    console.error("[Resend] Failed to send email:", errMsg);
+    return {
+      success: false,
+      error: errMsg,
+    };
+  }
+
+  console.log("================================================================");
+  console.log(`[Resend] Password reset email sent to: ${to}`);
+  console.log(`[Resend] Message ID: ${data?.id || "unknown"}`);
+  console.log("================================================================");
+
+  return {
+    success: true,
+    messageId: data?.id,
+    previewUrl: false,
+  };
+};
+
+export const sendPasswordResetEmail = async (
+  to: string,
+  displayName: string,
+  resetUrl: string
+): Promise<SendMailResult> => {
+  try {
+    const { subject, textContent, htmlContent } = buildPasswordResetEmailContent(
+      displayName,
+      resetUrl
+    );
+
+    // Prefer Resend HTTPS API when RESEND_API_KEY is configured (works on Render free tier without SMTP ports)
+    const resendApiKey = process.env.RESEND_API_KEY?.trim();
+    if (resendApiKey) {
+      const resendFrom =
+        process.env.EMAIL_FROM?.trim() ||
+        "ChessCoin Security <onboarding@resend.dev>";
+      return await sendViaResend(
+        resendApiKey,
+        resendFrom,
+        to,
+        subject,
+        textContent,
+        htmlContent
+      );
+    }
+
+    const transporter = await getTransporter();
+    const fromAddress =
+      process.env.EMAIL_FROM || '"ChessCoin Security" <no-reply@chesscoin.org>';
 
     const mailOptions = {
       from: fromAddress,
@@ -271,7 +347,7 @@ ChessCoin Security Protocol
       previewUrl: previewUrl || false,
     };
   } catch (error) {
-    console.error("[Nodemailer] Failed to send email:", error);
+    console.error("[MailService] Failed to send email:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to send email",

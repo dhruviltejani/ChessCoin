@@ -571,8 +571,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       .replace(/\/+$/, "");
     const resetUrl = `${frontendBase}/reset-password?token=${rawToken}`;
 
-    // Send email using Nodemailer
+    // Send email via Resend HTTPS API (when configured) or Nodemailer SMTP/Ethereal
     const mailResult = await sendPasswordResetEmail(user.email, user.display_name, resetUrl);
+
+    if (!mailResult.success) {
+      res.status(502).json({
+        success: false,
+        message: mailResult.error || "Failed to send password reset email. Please try again later.",
+      });
+      return;
+    }
 
     res.status(200).json({
       success: true,
